@@ -26,3 +26,11 @@ test('clock labels are relative to the hypothetical release and cross midnight',
   assert.match(clockAt(12,4),/Nov 25, 4:00 PM CST/);
   assert.match(clockAt(23,2),/Nov 26, 1:00 AM CST/);
 });
+
+test('time checkpoint labels are optional and no longer obscure the paths',()=>{
+ const src=fs.readFileSync(new URL('../assets/js/overlay.js',import.meta.url),'utf8');
+ assert.match(src,/let showTimeDots=false/);
+ assert.match(src,/if\(showTimeDots\)/);
+ assert.doesNotMatch(src,/time-label-bg/);
+ assert.doesNotMatch(src,/labelTime\(/);
+});

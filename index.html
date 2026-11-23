@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
-  <link rel="stylesheet" href="./assets/css/style.css?v=timeline-scrubber-20261123">
+  <link rel="stylesheet" href="./assets/css/style.css?v=timeline-clean-20261123">
 </head>
 <body>
   <header class="site-header"><div class="shell header-content">
@@ -45,7 +45,8 @@
             </div>
             <input type="range" id="timeline-slider" class="timeline-slider" min="0" max="8" step="0.25" value="4" aria-label="Elapsed time since hypothetical detonation">
             <div id="timeline-ticks" class="timeline-ticks" aria-hidden="true"><span>+0h</span><span>+2h</span><span>+4h</span><span>+6h</span><span>+8h</span></div>
-            <p class="timeline-note"><b>Bright line</b> = modeled air-parcel travel up to selected time. <b>Faded line</b> = later forecast. Hourly dots and +2h labels mark elapsed travel time; this is not a spreading plume or lead-deposition forecast.</p>
+            <div class="timeline-tools"><label class="checkpoint-toggle"><input id="time-dots-toggle" type="checkbox"> Show optional time checkpoints</label><span class="timeline-key"><i class="key-line"></i> Completed&nbsp; <i class="key-line faded"></i> Later</span></div>
+            <p class="timeline-note">Move the slider to track the <b>colored position markers</b> at a shared elapsed time. The faint lines show later wind transport. Optional dots mark 4-hour intervals (6-hour intervals on longer paths). These are air-parcel paths, not a plume footprint or lead-deposition estimate.</p>
           </div>
           <div id="overlay-status" class="map-overlay-status" role="status" aria-live="polite">Loading forecast wind paths…</div>
           <div class="map-footer"><span><i class="legend-dot" style="background:#ffd078"></i>Detonation site</span><span><i class="legend-line" style="background:#54d7d5"></i>Travel route (approx.)</span><span><i class="legend-line" style="background:#cd9dfa"></i>Forecast air-parcel paths by altitude</span></div>
@@ -101,6 +102,6 @@
   </main>
   <footer><div class="shell footer-inner"><div class="brand"><span class="brand-symbol">≋</span> IOWA <b>PLUME WATCH</b></div><p>Independent forecast screening. Not affiliated with the Army, EPA, NOAA, Open-Meteo or ECMWF. Never use this tool as an environmental all-clear.</p><a href="#top">BACK TO TOP ↑</a></div></footer>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-  <script type="module" src="./assets/js/app.js?v=timeline-scrubber-20261123"></script>
+  <script type="module" src="./assets/js/app.js?v=timeline-clean-20261123"></script>
 </body>
 </html>

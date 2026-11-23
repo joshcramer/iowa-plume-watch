@@ -43,27 +43,6 @@ export function pointAtElapsed(track,h){
 
 function lineD(coords){return coords.map(([x,y],i)=>(i?'L':'M')+x.toFixed(2)+' '+y.toFixed(2)).join(' ');}
 
-function labelTime(layer,point,label,color,occupied,size){
-  const width=41,height=19;
-  const trials=[
-    [10,-24],[10,7],[-width-10,-24],[-width-10,7],
-    [15,-35],[-width-15,16]
-  ];
-  for(const [ox,oy] of trials){
-    const x=point.x+ox,y=point.y+oy;
-    if(x<5||y<5||x+width>size.x-5||y+height>size.y-5)continue;
-    const rect={x,y,w:width,h:height};
-    if(occupied.some(r=>x<r.x+r.w+4&&x+width+4>r.x&&y<r.y+r.h+4&&y+height+4>r.y))continue;
-    occupied.push(rect);
-    layer.appendChild(svg('rect',{class:'time-label-bg',x,y,rx:5,ry:5,width,height,fill:'#0a2839',stroke:color,'stroke-width':1.3,opacity:.98}));
-    const text=svg('text',{class:'forecast-time-label',x:x+width/2,y:y+12.8,'text-anchor':'middle','font-size':11,'font-weight':750,fill:'#f4ffff'});
-    text.textContent=label;
-    layer.appendChild(text);
-    return true;
-  }
-  return false;
-}
-
 export function createTransportOverlay(map,reference={}){
   const root=map.getContainer();
   const layer=svg('svg',{class:'wind-path-svg',role:'img','aria-label':'Iowa map showing approximate airport route and modeled wind trajectories; not a lead hazard map'});
@@ -71,6 +50,7 @@ export function createTransportOverlay(map,reference={}){
   let tracks=[];
   let elapsedHours=4;
   let releaseHour=12;
+  let showTimeDots=false;
   function draw(){
     const size=map.getSize();
     if(!size?.x||!size?.y)return;
@@ -100,7 +80,8 @@ export function createTransportOverlay(map,reference={}){
     // Draw complete possible trajectories faintly, then brighten only the
     // segment reached by the selected hypothetical elapsed time.
     // This is not a time-evolving plume, nor a physical cloud boundary.
-    const tickLabels=[];
+    // Cleaner default: no permanent text labels covering the wind lines.
+    // Optional checkpoint dots show elapsed time via hover tooltips.
     const selectedMarkers=[];
     let visibleTrackCount=0;
     for(const [index,track] of tracks.entries()){
@@ -121,29 +102,25 @@ export function createTransportOverlay(map,reference={}){
         const activeCoords=active.map(toPoint).filter(p=>p&&finite(p.x)&&finite(p.y)).map(p=>[p.x,p.y]);
         layer.appendChild(svg('path',{class:'forecast-progress',d:lineD(activeCoords),fill:'none',stroke:track.color||'#91dbd8','stroke-width':4.8,'stroke-linecap':'round','stroke-linejoin':'round'}));
       }
-      // Hourly dots; labeled every two hours where there is room.
-      const latest=points.at(-1).h;
-      for(let hour=1;hour<=Math.floor(latest+1e-7);hour++){
-        const p=pointAtElapsed(track,hour);
-        if(!p)continue;
-        const q=map.latLngToContainerPoint([p.lat,p.lon]);
-        if(!q||!finite(q.x)||!finite(q.y))continue;
-        const tick=svg('circle',{class:'hour-tick',cx:q.x,cy:q.y,r:hour%2===0?3.4:2.1,fill:track.color||'#91dbd8',stroke:'#0b2635','stroke-width':1.5});
-        const title=svg('title');title.textContent=(track.label||'Wind')+' +'+hour+'h — '+clockAt(releaseHour,hour)+' (hypothetical)';
-        tick.appendChild(title);
-        layer.appendChild(tick);
-        if(hour%2===0)tickLabels.push({x:q.x,y:q.y,hour,color:track.color||'#91dbd8',index});
+      if(showTimeDots){
+        const latest=points.at(-1).h;
+        // For long-range tracking fewer checkpoints are easier to see.
+        const spacing=elapsedHours>12?6:4;
+        for(let hour=spacing;hour<=Math.floor(latest+1e-7);hour+=spacing){
+          const p=pointAtElapsed(track,hour);
+          if(!p)continue;
+          const q=map.latLngToContainerPoint([p.lat,p.lon]);
+          if(!q||!finite(q.x)||!finite(q.y))continue;
+          const tick=svg('circle',{class:'hour-tick',cx:q.x,cy:q.y,r:3.2,fill:track.color||'#91dbd8',stroke:'#0b2635','stroke-width':1.4});
+          const title=svg('title');title.textContent=(track.label||'Wind')+' +'+hour+'h — '+clockAt(releaseHour,hour)+' (hypothetical)';
+          tick.appendChild(title);layer.appendChild(tick);
+        }
       }
       if(cursor){
         const q=map.latLngToContainerPoint([cursor.lat,cursor.lon]);
         if(q&&finite(q.x)&&finite(q.y))selectedMarkers.push({x:q.x,y:q.y,color:track.color||'#91dbd8',label:track.label||'Wind'});
       }
     }
-    // Place pills after paths so the labels stay legible; skip colliding
-    // labels (their corresponding hourly dots remain on the map).
-    const occupied=[];
-    tickLabels.sort((a,b)=>a.hour-b.hour||a.index-b.index);
-    for(const tick of tickLabels)labelTime(layer,tick,'+'+tick.hour+'h',tick.color,occupied,size);
     for(const mark of selectedMarkers){
       const g=svg('g',{class:'selected-time-marker'});
       const ring=svg('circle',{cx:mark.x,cy:mark.y,r:9.2,fill:'#ffffff',stroke:'#082535','stroke-width':3});
@@ -171,10 +148,12 @@ export function createTransportOverlay(map,reference={}){
     tracks=Array.isArray(next)?next:[];
     if(finite(options.elapsedHours))elapsedHours=Math.max(0,options.elapsedHours);
     if(finite(options.releaseHour))releaseHour=options.releaseHour;
+    if(typeof options.showTimeDots==='boolean')showTimeDots=options.showTimeDots;
     draw();
   }
   function setElapsed(hours){if(finite(hours)){elapsedHours=Math.max(0,hours);draw();}}
+  function setTimeDots(show){showTimeDots=Boolean(show);draw();}
   map.on('move zoom resize',draw);
   window.addEventListener('resize',draw);
-  return {svg:layer,setTracks,setElapsed,draw,getCount:()=>Number(layer.dataset.pathCount||0)};
+  return {svg:layer,setTracks,setElapsed,setTimeDots,draw,getCount:()=>Number(layer.dataset.pathCount||0)};
 }

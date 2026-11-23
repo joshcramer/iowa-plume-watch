@@ -2,7 +2,7 @@ import {EVENT_DATE,PLANT,PLACES,ROUTE,LEVELS,integrate,sourceWind,toCompass,clos
 import {createTransportOverlay,clockAt} from './overlay.js';
 
 const el=id=>document.getElementById(id);
-const state={snapshot:null,model:'',release:12,duration:8,enabled:new Set(LEVELS.map(x=>x.key)),layers:[],map:null,routeLayer:null,transportOverlay:null,elapsed:4,viewKey:'',loadError:''};
+const state={snapshot:null,model:'',release:12,duration:8,enabled:new Set(LEVELS.map(x=>x.key)),layers:[],map:null,routeLayer:null,transportOverlay:null,elapsed:4,showTimeDots:false,viewKey:'',loadError:''};
 const formatDate=(iso,withYear=false)=>iso?new Intl.DateTimeFormat('en-US',{timeZone:'America/Chicago',month:'short',day:'numeric', ...(withYear?{year:'numeric'}:{}),hour:'numeric',minute:'2-digit'}).format(new Date(iso))+' CST':'—';
 const escapeText=str=>String(str??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const miles=km=>`${(km/1.609344).toFixed(1)} mi`;
@@ -32,6 +32,10 @@ function updateTimeline(){
   state.transportOverlay?.setElapsed(state.elapsed);
 }
 function installTimeline(){
+  el('time-dots-toggle').addEventListener('change',event=>{
+    state.showTimeDots=event.target.checked;
+    state.transportOverlay?.setTimeDots(state.showTimeDots);
+  });
   el('timeline-slider').addEventListener('input',event=>{
     pauseTimeline();
     state.elapsed=Number(event.target.value);
@@ -116,7 +120,7 @@ function render(){
   const model=state.snapshot?.models?.[state.model];
   const overlayStatus=el('overlay-status');
   if(!model){
-    state.transportOverlay?.setTracks([],{elapsedHours:state.elapsed,releaseHour:state.release});
+    state.transportOverlay?.setTracks([],{elapsedHours:state.elapsed,releaseHour:state.release,showTimeDots:state.showTimeDots});
     updateTimeline();
     overlayStatus.textContent=state.loadError ? `Overlay unavailable: ${state.loadError}` : 'Awaiting live wind paths. No forecast overlay is displayed.';el('route-distance').textContent='Unavailable';el('model-readout').textContent='No live forecast from a validated model is available. The static reference diagrams below remain non-live, illustrative analyses.';el('wind-rows').innerHTML='<div class="empty-winds">No verified numerical upper-air winds loaded yet. Run the forecast workflow in GitHub Actions.</div>';return;}
   const metrics=[];
@@ -137,7 +141,7 @@ function render(){
       displayTracks.push({points:traj.points,color:level.color,label:level.label,truncated:traj.truncated});
     }
   }
-  state.transportOverlay?.setTracks(displayTracks,{elapsedHours:state.elapsed,releaseHour:state.release});
+  state.transportOverlay?.setTracks(displayTracks,{elapsedHours:state.elapsed,releaseHour:state.release,showTimeDots:state.showTimeDots});
   updateTimeline();
   el('wind-rows').innerHTML=winds.join('');
   if(metrics.length){

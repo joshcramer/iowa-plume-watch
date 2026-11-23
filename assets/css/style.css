@@ -35,3 +35,13 @@
   .timeline-clock{font-size:15px}
   .timeline-play{padding:8px 9px;min-width:76px}
 }
+
+/* Clean map by default: visible trajectories without permanent time-box clutter. */
+.timeline-tools{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin:10px 0 0}
+.checkpoint-toggle{display:inline-flex;gap:8px;align-items:center;color:#b4d9df;font-size:12px;cursor:pointer}
+.checkpoint-toggle input{accent-color:#5dddd9;cursor:pointer}
+.timeline-key{color:#9dbcc2;font-size:11px;white-space:nowrap;display:flex;align-items:center;gap:5px}
+.key-line{display:inline-block;width:21px;height:4px;background:#6be2df;border-radius:2px}
+.key-line.faded{height:3px;opacity:.35}
+#map .wind-path-svg .hour-tick{pointer-events:all;cursor:help}
+#map .wind-path-svg .selected-time-marker{pointer-events:all;cursor:help}

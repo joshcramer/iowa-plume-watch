@@ -55,7 +55,11 @@ try {
   await page.locator('#map').scrollIntoViewIfNeeded();
 
   // A two-hour map label and the scrubber must agree on elapsed time.
-  assert.ok(await page.locator('.wind-path-svg .forecast-time-label').count()>0,'Forecast paths must have elapsed-time labels');
+  assert.equal(await page.locator('.wind-path-svg .forecast-time-label').count(),0,'Clean default must omit boxed labels');
+  assert.equal(await page.locator('.wind-path-svg .hour-tick').count(),0,'Time checkpoints off by default');
+  await page.locator('#time-dots-toggle').check();
+  assert.ok(await page.locator('.wind-path-svg .hour-tick').count()>0,'Optional time checkpoints appear');
+  await page.locator('#time-dots-toggle').uncheck();
   assert.equal(await page.locator('#timeline-slider').inputValue(),'4');
   assert.match(await page.locator('#timeline-clock').textContent(),/\+4h.*Nov 25.*4:00 PM CST/);
   const markerBefore=await page.locator('.wind-path-svg .selected-time-marker').first().locator('circle').first().getAttribute('cx');
