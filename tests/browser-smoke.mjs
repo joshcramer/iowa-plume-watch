@@ -137,7 +137,7 @@ try {
     await mobile.goto('http://127.0.0.1:8000/',{waitUntil:'domcontentloaded'});
     await mobile.waitForFunction(()=>document.querySelectorAll('.mini-map-card').length===4,null,{timeout:25000});
     const cols=await mobile.evaluate(()=>getComputedStyle(document.querySelector('.mini-map-grid')).gridTemplateColumns);
-    assert.equal(cols.trim().split(/\\s+/).length,1,'Mobile should show one mini-map column');
+    assert.equal(cols.trim().split(/\s+/).length,1,'Mobile should show one mini-map column');
     await mobile.locator('.mini-map-card[data-level="10m"]').screenshot({path:'browser-mobile-minis.png'});
   }finally{await mobile.close();}
     assert.deepEqual(errors,[],'No uncaught JavaScript errors');
