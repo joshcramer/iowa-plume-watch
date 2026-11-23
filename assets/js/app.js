@@ -10,7 +10,7 @@ const mph=kmh=>`${(kmh/1.609344).toFixed(1)} mph`;
 
 function makeMap(){
   if(typeof L==='undefined'){el('map-fallback').hidden=false;return;}
-  const map=L.map('map',{zoomControl:false,scrollWheelZoom:false,preferCanvas:true}).setView([41.30,-91.35],8);
+  const map=L.map('map',{zoomControl:false,scrollWheelZoom:false,preferCanvas:false}).setView([41.30,-91.35],8);
   L.control.zoom({position:'bottomright'}).addTo(map);
   // OpenStreetMap Standard requires no API key. Only visible tiles are requested.
   const baseTiles=L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{

@@ -4,7 +4,7 @@
 @media(max-width:650px){.shell{width:min(100% - 30px,1190px)}.hero{padding-top:48px}.hero-grid{grid-template-columns:1fr}.hero h1{font-size:clamp(3.3rem,13vw,5.4rem)}.hero-orbit{display:none}.lead{font-size:17px}.section{padding-top:62px}.section-header{align-items:start;flex-direction:column}.metrics{gap:9px}.metric{padding:14px}.metric-value{font-size:24px}.metric-value.smaller{font-size:16px}.metric-foot{font-size:10px}.metrics{grid-template-columns:repeat(2,1fr)}.map-heading{padding:14px}.map-time{display:none}#map{height:370px}.archive-grid,.status-grid,.equations,.code-box{grid-template-columns:1fr}.method-grid{grid-template-columns:1fr}.winds-head,.wind-row{grid-template-columns:1fr 1fr;gap:8px}.winds-head span:last-child,.wind-row>div:last-child{display:none}.footer-inner{align-items:start;flex-direction:column}.footer-inner>a{margin-left:0}.code-box{padding:24px}.github-button{padding:8px;font-size:10px}.warning{padding:17px}.warning p{font-size:12px}}
 
 /* The OSM Standard raster tiles are darkened client-side. Forecast overlays are unfiltered. */
-#map .leaflet-tile-pane{filter:invert(.93) hue-rotate(180deg) brightness(.78) contrast(1.06) saturate(.75)}
+#map .leaflet-tile-pane{filter:none}
 #map .leaflet-control-attribution{background:rgba(9,22,34,.9);color:#cee5ee;padding:2px 5px}
 #map .leaflet-control-attribution a{color:#88e4df}
 #map .leaflet-control-zoom a{background:#102939;color:#d9f4f4;border-color:#254b5a}

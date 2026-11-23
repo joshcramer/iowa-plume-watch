@@ -25,6 +25,11 @@ try {
     };
   });
   assert.ok(details.paths>=2,'Visible SVG path shapes must be present');
+  // The route and plant marker must not disappear into Leaflet's Canvas layer.
+  await page.waitForFunction(()=>document.querySelectorAll('.leaflet-overlay-pane svg path').length>=3,null,{timeout:10000});
+  await page.waitForTimeout(1800);
+  const referenceCount=await page.locator('.leaflet-overlay-pane svg path').count();
+  assert.ok(referenceCount>=3,'Reference route and site markers must render as SVG');
   assert.ok(details.modelCount>=2,'Forecast models should be populated');
   assert.ok(details.dx<3&&details.dy<3&&details.widthDiff<3,'Overlay must align to map container');
   assert.match(details.status,/path/i,'Overlay status must report paths');
