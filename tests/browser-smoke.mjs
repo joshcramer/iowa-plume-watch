@@ -82,7 +82,26 @@ try {
   const after=await page.locator('.wind-path-svg .forecast-path').count();
   assert.equal(after,before-1,'Unchecking one wind level removes its forecast path');
   await page.locator('#map').screenshot({path:'browser-map-after-controls.png'});
-  assert.deepEqual(errors,[],'No uncaught JavaScript errors');
+  // Extended horizon may be absent if the upstream regional provider failed.
+  // When real 48h GFS paths are published, verify the browser can display them.
+  const ext=await page.evaluate(async()=>{
+    const [near,long]=await Promise.all([fetch('./data/forecast.json').then(r=>r.json()),fetch('./data/extended-tracks.json').then(r=>r.json())]);
+    return {matched:long?.source_snapshot_utc===near?.fetched_at_utc,
+            coverage:long?.paths?.gfs?.['12']?.['10m']?.hours_reached||0};
+  });
+  if(ext.matched && ext.coverage>=48){
+    await page.selectOption('#model-select','gfs');
+    await page.selectOption('#release-select','12');
+    await page.selectOption('#horizon-select','48');
+    assert.equal(await page.locator('#timeline-slider').getAttribute('max'),'48');
+    assert.match(await page.locator('#timeline-clock').textContent(),/Nov 27.*12:00 PM CST/);
+    const pCount=await page.locator('.wind-path-svg .forecast-path').count();
+    assert.ok(pCount>=3,'Extended GFS must have multiple 48h paths');
+    const warning=await page.locator('#long-range-warning').textContent();
+    assert.match(warning,/0 of 4 paths end before \+48h/,'Extended GFS should not be reported truncated');
+    await page.locator('#map').screenshot({path:'browser-map-48h.png'});
+  }
+    assert.deepEqual(errors,[],'No uncaught JavaScript errors');
   console.log('PASS browser map overlay and controls:',details);
 } finally {
   await browser.close();
