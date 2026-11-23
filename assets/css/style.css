@@ -9,3 +9,5 @@
 #map .leaflet-control-attribution a{color:#88e4df}
 #map .leaflet-control-zoom a{background:#102939;color:#d9f4f4;border-color:#254b5a}
 #map .leaflet-control-zoom a:hover{background:#214355;color:#fff}
+
+.map-overlay-status{border-top:1px solid #254654;background:#0d2837;color:#a7e9e5;padding:11px 17px;font-size:12px;line-height:1.5;min-height:42px}

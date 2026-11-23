@@ -37,3 +37,16 @@ test('missing forecast data does not create extrapolated tracks',()=>{
 test('clock crosses from Nov 25 to Nov 26 without bad labels',()=>{
   assert.equal(localHour('2026-11-25',25),'2026-11-26T01:00');
 });
+
+test('all four release-level scenarios produce plottable geometry for a valid model',()=>{
+  const model=fakeModel(19,65);
+  for(const release of [9,12,15]){
+    for(const key of ['10m','80m','925hPa','850hPa']){
+      const from=sourceWind(model,key,release);
+      const track=integrate(model,key,release,8);
+      assert.ok(from && Number.isFinite(from.speedKmh),`${key} wind for ${release}`);
+      assert.ok(track.points.length>1,`${key} overlay path for ${release}`);
+      assert.ok(track.points.every(p=>Number.isFinite(p.lat)&&Number.isFinite(p.lon)));
+    }
+  }
+});

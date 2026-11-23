@@ -1,7 +1,7 @@
 import {EVENT_DATE,PLANT,PLACES,ROUTE,LEVELS,integrate,sourceWind,toCompass,closestToRoute,validateSnapshot} from './trajectory.js';
 
 const el=id=>document.getElementById(id);
-const state={snapshot:null,model:'',release:12,duration:8,enabled:new Set(LEVELS.map(x=>x.key)),layers:[],map:null,routeLayer:null};
+const state={snapshot:null,model:'',release:12,duration:8,enabled:new Set(LEVELS.map(x=>x.key)),layers:[],map:null,routeLayer:null,viewKey:'',loadError:''};
 const formatDate=(iso,withYear=false)=>iso?new Intl.DateTimeFormat('en-US',{timeZone:'America/Chicago',month:'short',day:'numeric', ...(withYear?{year:'numeric'}:{}),hour:'numeric',minute:'2-digit'}).format(new Date(iso))+' CST':'—';
 const escapeText=str=>String(str??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const miles=km=>`${(km/1.609344).toFixed(1)} mi`;
@@ -47,7 +47,7 @@ function installControls(){
     });
     levels.appendChild(item);
   }
-  el('release-select').addEventListener('change',e=>{state.release=Number(e.target.value);render();});
+  el('release-select').addEventListener('change',e=>{state.release=Number(e.target.value);safeRender();});
   el('duration-range').addEventListener('input',e=>{state.duration=Number(e.target.value);el('duration-label').textContent=`${state.duration} ${state.duration===1?'hour':'hours'}`;render();});
   el('model-select').addEventListener('change',e=>{state.model=e.target.value;render();});
 }
@@ -67,18 +67,21 @@ function renderHeader(){
   el('updated-at').textContent=s?.fetched_at_utc?formatDate(s.fetched_at_utc):'Pending';
   el('updated-foot').textContent=s?.fetched_at_utc?'Weather data fetched (not a verified model initialization cycle)':'GitHub Actions must run first';
   el('map-label').textContent=`Nov 25 · ${state.release===12?'Hypothetical noon':state.release<12?`${state.release}:00 a.m.`:`${state.release-12}:00 p.m.`} release`;
-  if(kind==='stale'){el('error-message').hidden=false;el('error-message').textContent='The last successful weather fetch is more than nine hours old. Treat paths as outdated until the forecast collector completes again.';}
-  else{el('error-message').hidden=true;}
+  const issue=state.loadError || (kind==='stale'?'The last successful weather fetch is more than nine hours old. Treat paths as outdated until the forecast collector completes again.':'');
+  el('error-message').hidden=!issue;
+  el('error-message').textContent=issue;
 }
 function render(){
   renderHeader();
   for(const l of state.layers){try{state.map?.removeLayer(l);}catch{}}
   state.layers=[];
   const model=state.snapshot?.models?.[state.model];
-  if(!model){el('route-distance').textContent='Unavailable';el('model-readout').textContent='No live forecast from a validated model is available. The static reference diagrams below remain non-live, illustrative analyses.';el('wind-rows').innerHTML='<div class="empty-winds">No verified numerical upper-air winds loaded yet. Run the forecast workflow in GitHub Actions.</div>';return;}
+  const overlayStatus=el('overlay-status');
+  if(!model){
+    overlayStatus.textContent=state.loadError ? `Overlay unavailable: ${state.loadError}` : 'Awaiting live wind paths. No forecast overlay is displayed.';el('route-distance').textContent='Unavailable';el('model-readout').textContent='No live forecast from a validated model is available. The static reference diagrams below remain non-live, illustrative analyses.';el('wind-rows').innerHTML='<div class="empty-winds">No verified numerical upper-air winds loaded yet. Run the forecast workflow in GitHub Actions.</div>';return;}
   const metrics=[];
   const winds=[];
-  const endpoints=[];
+  const displayPaths=[];
   for(const level of LEVELS){
     const forecast=sourceWind(model,level.key,state.release);
     const traj=integrate(model,level.key,state.release,state.duration);
@@ -89,7 +92,7 @@ function render(){
     if(traj.points.length>=2){
       const closest=closestToRoute(traj.points);
       metrics.push({level,closest,traj,wind:forecast});
-      endpoints.push(traj.points[traj.points.length-1]);
+      displayPaths.push(...traj.points.map(p=>[p.lat,p.lon]));
       if(state.map){
         const path=L.polyline(traj.points.map(p=>[p.lat,p.lon]),{color:level.color,weight:4,opacity:.91,dashArray:traj.truncated?'3,7':undefined}).addTo(state.map);
         const last=traj.points[traj.points.length-1];
@@ -103,12 +106,27 @@ function render(){
   }
   el('wind-rows').innerHTML=winds.join('');
   if(metrics.length){
+    // Center the viewport on the trajectories AND the airport corridor.
+    // Previously the 8-hour paths could run off-screen at the fixed zoom.
+    const viewKey=[state.snapshot?.fetched_at_utc,state.model,state.release,state.duration,[...state.enabled].sort().join(',')].join('|');
+    if(state.map && viewKey!==state.viewKey && displayPaths.length){
+      try {
+        state.map.invalidateSize({pan:false});
+        const locations=[...displayPaths, ...ROUTE.map(p=>[p.lat,p.lon]), [PLANT.lat,PLANT.lon]];
+        state.map.fitBounds(L.latLngBounds(locations),{padding:[25,25],maxZoom:8,animate:false});
+        state.viewKey=viewKey;
+      } catch(err){
+        console.error('Could not frame wind trajectories',err);
+      }
+    }
+    const incomplete=metrics.filter(m=>m.traj.truncated).length;
+    overlayStatus.textContent=`${metrics.length} forecast air-parcel path${metrics.length===1?'':'s'} plotted for ${model.name} (${state.release}:00 CST, ${state.duration}h).${incomplete?` ${incomplete} shortened due to missing/out-of-grid winds.`:''} Wind paths only — not a lead plume or deposition estimate.`;
     const min=Math.min(...metrics.map(m=>m.closest));
     el('route-distance').textContent=miles(min);
     const headline=metrics.map(m=>`${escapeText(m.level.short)}: ${toCompass(m.wind.headingTo)} at ${mph(m.wind.speedKmh)}`).join('<br>');
-    const incomplete=metrics.filter(m=>m.traj.truncated).length;
     el('model-readout').innerHTML=`<b>${escapeText(model.name)}</b><br>${headline}<br><br><b>${miles(min)}</b> minimum path-centerline distance to the approximate airport route.${incomplete?`<br><span style="color:#ffcc86">${incomplete} path(s) truncated due to missing wind data or exiting the sampled grid.</span>`:''}`;
   }else{
+    overlayStatus.textContent='No trajectories for this selection. Check the available wind levels, time, and forecast timestamp.';
     el('route-distance').textContent='—';
     el('model-readout').textContent='No wind levels selected, or trajectory data missing. Select one or more available levels.';
   }
@@ -118,8 +136,9 @@ async function loadForecast(){
     const r=await fetch('./data/forecast.json',{cache:'no-store'});
     if(!r.ok)throw new Error(`HTTP ${r.status}`);
     const snapshot=await r.json();
+    validateSnapshot(snapshot);
     state.snapshot=snapshot;
-    try{validateSnapshot(snapshot);}catch{state.snapshot=snapshot;render();return;}
+    state.loadError='';
     const names=Object.keys(snapshot.models);
     const selection=el('model-select');
     selection.replaceChildren(...names.map(key=>{
@@ -127,11 +146,12 @@ async function loadForecast(){
     }));
     state.model=names.includes(state.model)?state.model:names[0];
     selection.value=state.model;
-    render();
+    safeRender();
   }catch(err){
-    el('error-message').hidden=false;
-    el('error-message').textContent=`Forecast unavailable: ${err.message}. This page must be served over HTTP(S) (not file://) and needs the scheduled data file.`;
-    render();
+    state.loadError=`Forecast unavailable: ${err.message}. Check the published data/forecast.json, network connection, and developer console.`;
+    state.snapshot=null;
+    state.viewKey='';
+    safeRender();
   }
 }
 async function loadOfficial(){
@@ -154,7 +174,16 @@ async function loadOfficial(){
     el('source-watch-text').textContent=notices.join(' ');
   }catch{el('source-watch-text').textContent='Source-page change watch unavailable; check primary agency links directly.';}
 }
-makeMap();installControls();render();loadForecast();loadOfficial();
+function safeRender(){
+  try { render(); }
+  catch(err){
+    console.error('Wind-path overlay rendering failed:',err);
+    state.loadError=`Wind-path drawing failed: ${err?.message||'Unknown error'}`;
+    renderHeader();
+    el('overlay-status').textContent=state.loadError;
+  }
+}
+makeMap();installControls();safeRender();loadForecast();loadOfficial();
 // A tab left open picks up newly published snapshots without a page reload.
 setInterval(()=>{loadForecast();loadOfficial();},5*60*1000);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden){loadForecast();loadOfficial();}});
