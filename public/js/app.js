@@ -1,10 +1,11 @@
 import {EVENT_DATE,PLANT,PLACES,ROUTE,LEVELS,integrate,sourceWind,toCompass,closestToRoute,validateSnapshot} from './trajectory.js';
-import {createTransportOverlay,clockAt} from './overlay.js';
+import {createTransportOverlay,clockAt} from './overlay.js?v=ntnt-2';
 import {inspectNearestTrack,formatElapsed} from './inspect.js';
-import {createMiniMaps} from './minimaps.js';
 
 const el=id=>document.getElementById(id);
-const state={snapshot:null,model:'',release:12,duration:8,enabled:new Set(LEVELS.map(x=>x.key)),layers:[],map:null,routeLayer:null,transportOverlay:null,miniMaps:null,displayTracks:[],elapsed:4,showTimeDots:false,extended:null,viewMode:'all',viewKey:'',loadError:''};
+// Prefer GFS’s full set of wind levels, regardless of snapshot key order.
+const MODEL_ORDER=['gfs','rrfs','ecmwf'];
+const state={snapshot:null,model:'',release:12,duration:8,enabled:new Set(LEVELS.map(x=>x.key)),layers:[],map:null,routeLayer:null,transportOverlay:null,displayTracks:[],elapsed:4,showTimeDots:false,extended:null,viewMode:'all',viewKey:'',loadError:''};
 const formatDate=(iso,withYear=false)=>iso?new Intl.DateTimeFormat('en-US',{timeZone:'America/Chicago',month:'short',day:'numeric', ...(withYear?{year:'numeric'}:{}),hour:'numeric',minute:'2-digit'}).format(new Date(iso))+' CST':'—';
 const escapeText=str=>String(str??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const miles=km=>`${(km/1.609344).toFixed(1)} mi`;
@@ -46,7 +47,6 @@ function updateTimeline(){
     const span=document.createElement('span');span.textContent='+'+hour+'h';return span;
   }));
   state.transportOverlay?.setElapsed(state.elapsed);
-  state.miniMaps?.setElapsed(state.elapsed);
   state.hoverInspector?.hide();
 }
 function installTimeline(){
@@ -130,25 +130,6 @@ function createHoverInspector(map){
   map.on('movestart zoomstart',hide);
   return {hide,element:panel};
 }
-function initializeMiniMaps(){
-  const root=el('mini-map-grid');
-  state.miniMaps=createMiniMaps(root,LEVELS,{
-    route:ROUTE,plant:PLANT,places:PLACES,
-    onSelect:level=>{
-      state.enabled=new Set([level]);
-      document.querySelectorAll('#level-controls input[data-level]').forEach(checkbox=>{
-        checkbox.checked=checkbox.dataset.level===level;
-      });
-      safeRender();
-    }
-  });
-  el('mini-map-show-all').addEventListener('click',()=>{
-    state.enabled=new Set(LEVELS.map(level=>level.key));
-    document.querySelectorAll('#level-controls input[data-level]').forEach(checkbox=>checkbox.checked=true);
-    safeRender();
-  });
-}
-
 function makeMap(){
   if(typeof L==='undefined'){el('map-fallback').hidden=false;return;}
   const map=L.map('map',{zoomControl:false,scrollWheelZoom:false,preferCanvas:false}).setView([41.30,-91.35],8);
@@ -176,7 +157,7 @@ function installControls(){
   const levels=el('level-controls');
   for(const level of LEVELS){
     const item=document.createElement('label');item.className='level-check';
-    item.innerHTML=`<input type="checkbox" data-level="${level.key}" checked><i class="color-marker" data-level="${level.key}"></i> ${escapeText(level.label)}`;
+    item.innerHTML=`<input type="checkbox" data-level="${level.key}" checked><i class="color-marker" data-level="${level.key}"></i> <span>${escapeText(level.label)}<small class="level-unavailable" hidden></small></span>`;
     item.querySelector('input').addEventListener('change',e=>{
       if(e.target.checked)state.enabled.add(level.key);else state.enabled.delete(level.key);
       safeRender();
@@ -199,6 +180,17 @@ function installControls(){
     safeRender();
   });
   el('model-select').addEventListener('change',e=>{state.model=e.target.value;safeRender();});
+}
+function renderLevelControls(model){
+  const supported=new Set(model?.available_levels??[]);
+  for(const input of el('level-controls').querySelectorAll('input[data-level]')){
+    const unavailable=!supported.has(input.dataset.level);
+    input.disabled=unavailable;
+    input.checked=!unavailable&&state.enabled.has(input.dataset.level);
+    const note=input.closest('label').querySelector('.level-unavailable');
+    note.hidden=!model||!unavailable;
+    note.textContent=note.hidden?'':'Not provided';
+  }
 }
 function scenarioArchived(){return Date.now()>=Date.parse('2026-11-28T06:00:00Z');}
 function statusClass(snapshot){
@@ -227,10 +219,10 @@ function render(){
   for(const l of state.layers){try{state.map?.removeLayer(l);}catch{}}
   state.layers=[];
   const model=state.snapshot?.models?.[state.model];
+  renderLevelControls(model);
   const overlayStatus=el('overlay-status');
   if(!model){
     state.displayTracks=[];
-    state.miniMaps?.setData({tracks:[],horizon:state.duration,elapsed:state.elapsed,enabled:[...state.enabled],model:state.model});
     state.hoverInspector?.hide();
     state.transportOverlay?.setTracks([],{elapsedHours:state.elapsed,releaseHour:state.release,showTimeDots:state.showTimeDots});
     updateTimeline();
@@ -239,15 +231,12 @@ function render(){
   const winds=[];
   const displayPaths=[];
   const displayTracks=[];
-  const allMiniTracks=[];
   for(const level of LEVELS){
     const forecast=sourceWind(model,level.key,state.release);
     const traj=horizonTrack(model,level.key);
-    if(!forecast){winds.push(`<div class="wind-row"><div><strong>${escapeText(level.label)}</strong></div><div>Unavailable</div><div>—</div></div>`);continue;}
+    if(!forecast){winds.push(`<div class="wind-row"><div><strong>${escapeText(level.label)}</strong></div><div>${model.available_levels.includes(level.key)?'Unavailable at this time':'Not provided'}</div><div>—</div></div>`);continue;}
     const towards=(forecast.comingFrom+180)%360;
     winds.push(`<div class="wind-row"><div><strong><i class="color-marker" data-level="${level.key}"></i>${escapeText(level.label)}</strong><small>${escapeText(level.note)}</small></div><div class="wind-from"><span class="wind-arrow"  aria-hidden="true">${['↑','↗','→','↘','↓','↙','←','↖'][Math.round(towards/45)%8]}</span>${toCompass(forecast.comingFrom)} · ${mph(forecast.speedKmh)}</div><div class="wind-to">${toCompass(towards)} · ${Math.round(towards)}°</div></div>`);
-    if(traj.points.length>=2)allMiniTracks.push({key:level.key,points:traj.points,color:level.color,label:level.label,
-      note:level.note,truncated:traj.truncated});
     if(!state.enabled.has(level.key))continue;
     if(traj.points.length>=2){
       const closest=closestToRoute(traj.points);
@@ -259,7 +248,6 @@ function render(){
   state.displayTracks=displayTracks;
   state.hoverInspector?.hide();
   state.transportOverlay?.setTracks(displayTracks,{elapsedHours:state.elapsed,releaseHour:state.release,showTimeDots:state.showTimeDots});
-  state.miniMaps?.setData({tracks:allMiniTracks,horizon:state.duration,elapsed:state.elapsed,enabled:[...state.enabled],model:state.model});
   updateTimeline();
   el('wind-rows').innerHTML=winds.join('');
   if(metrics.length){
@@ -309,7 +297,8 @@ async function loadForecast(){
     validateSnapshot(snapshot);
     state.snapshot=snapshot;
     state.loadError='';
-    const names=Object.keys(snapshot.models);
+    const names=[...MODEL_ORDER,...Object.keys(snapshot.models).filter(key=>!MODEL_ORDER.includes(key))]
+      .filter(key=>Object.hasOwn(snapshot.models,key));
     const selection=el('model-select');
     selection.replaceChildren(...names.map(key=>{
       const opt=document.createElement('option');opt.value=key;opt.textContent=snapshot.models[key].name;return opt;
@@ -362,7 +351,7 @@ function safeRender(){
     el('overlay-status').textContent=state.loadError;
   }
 }
-makeMap();installControls();initializeMiniMaps();installTimeline();safeRender();loadForecast();loadExtended();loadOfficial();
+makeMap();installControls();installTimeline();safeRender();loadForecast();loadExtended();loadOfficial();
 // A tab left open picks up newly published snapshots without a page reload.
 setInterval(()=>{loadForecast();loadExtended();loadOfficial();},5*60*1000);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden){loadForecast();loadExtended();loadOfficial();}});

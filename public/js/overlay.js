@@ -91,7 +91,7 @@ export function createTransportOverlay(map,reference={}){
       const d=lineD(coords);
       layer.append(
         svg('path',{class:'forecast-halo',d,fill:'none',stroke:'#081d2b','stroke-width':7,'stroke-linecap':'round','stroke-linejoin':'round',opacity:.55}),
-        svg('path',{class:'forecast-path',d,fill:'none',stroke:track.color||'#91dbd8','stroke-width':3.7,'stroke-linecap':'round','stroke-linejoin':'round',opacity:.36,...(track.truncated?{'stroke-dasharray':'5 7'}:{})})
+        svg('path',{class:'forecast-path','data-level':track.key,d,fill:'none',stroke:track.color||'#91dbd8','stroke-width':3.7,'stroke-linecap':'round','stroke-linejoin':'round',opacity:.36,...(track.truncated?{'stroke-dasharray':'5 7'}:{})})
       );
       const points=pointsOf(track);
       const active=points.filter(p=>finite(p.h)&&p.h<=elapsedHours+1e-7);

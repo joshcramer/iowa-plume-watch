@@ -4,6 +4,13 @@ import { chromium } from 'playwright';
 const origin=process.env.APP_URL || 'http://127.0.0.1:8080';
 const browser = await chromium.launch({headless:true,args:['--no-sandbox']});
 const page = await browser.newPage({viewport:{width:1280,height:950},deviceScaleFactor:1});
+// Do not let JSON key order decide which weather model opens first.
+await page.route('**/data/forecast.json', async route=>{
+  const response=await route.fetch();
+  const forecast=await response.json();
+  forecast.models=Object.fromEntries(Object.entries(forecast.models).sort(([a],[b])=>a.localeCompare(b)));
+  await route.fulfill({response,json:forecast});
+});
 const errors=[];
 page.on('pageerror',e=>errors.push(e.message));
 try {
@@ -86,21 +93,24 @@ try {
   assert.match(inspected, /\+\d+h/,'Hover inspector must show elapsed time');
   await page.locator('#map').screenshot({path:'browser-hover-inspect.png'});
   await page.mouse.move(25,25);
-  // Four mini-maps must use the same geographic projection and follow the timeline.
-  const cards=page.locator('.mini-map-card');
-  assert.equal(await cards.count(),4);
-  assert.equal(await page.locator('.mini-map-forecast-line').count(),0); // regression selector intentionally empty; real class is mini-forecast-line
-  assert.ok(await page.locator('.mini-forecast-line').count()>=3);
-  const markerBeforeMini=await page.locator('.mini-map-card[data-level="10m"] .mini-time-marker').getAttribute('cx');
-  await page.locator('#timeline-slider').fill('3');
-  const markerAfterMini=await page.locator('.mini-map-card[data-level="10m"] .mini-time-marker').getAttribute('cx');
-  assert.notEqual(markerBeforeMini,markerAfterMini,'Mini-maps must respond to shared elapsed time');
-  await page.locator('.mini-map-card[data-level="850hPa"]').click();
-  assert.equal(await page.locator('.wind-path-svg .forecast-path').count(),1,'Choosing a mini map isolates that altitude');
-  await page.locator('#mini-map-show-all').click();
-  assert.ok(await page.locator('.wind-path-svg .forecast-path').count()>=3,'Show all restores main map tracks');
-  await page.locator('#timeline-slider').fill('4');
-  await page.locator('#altitude-compare').screenshot({path:'browser-mini-maps.png'});
+  assert.equal(await page.locator('#altitude-compare').count(),0,'No secondary altitude maps');
+  assert.equal(await page.locator('#model-select').inputValue(),'gfs','GFS defaults ahead of ECMWF regardless of JSON key order');
+  const path80=page.locator('.forecast-path[data-level="80m"]');
+  const level80=page.locator('#level-controls input[data-level="80m"]');
+  assert.equal(await path80.count(),1,'GFS 80 m path is visible by default');
+  await level80.uncheck();
+  assert.equal(await path80.count(),0,'Turning off 80 m hides its path');
+  await page.selectOption('#model-select','ecmwf');
+  assert.ok(await level80.isDisabled(),'ECMWF does not provide 80 m');
+  assert.match(await level80.locator('..').textContent(),/Not provided/);
+  assert.equal(await path80.count(),0,'Do not substitute another model’s wind');
+  await page.selectOption('#model-select','gfs');
+  assert.ok(await level80.isEnabled());
+  assert.equal(await path80.count(),0,'Switching back preserves the prior checkbox choice');
+  await level80.check();
+  assert.equal(await path80.count(),1);
+  const fonts=await page.locator('select, option, #timeline-play, #map-view-toggle, .metric-value, .status-card h3').evaluateAll(nodes=>nodes.map(el=>getComputedStyle(el).fontFamily));
+  assert.ok(fonts.length && fonts.every(font=>font===fonts[0] && font.includes('system-ui')),'Controls and headings share the system sans family');
   await page.locator('#map').screenshot({path:'browser-map-default.png'});
   const first=await page.locator('.wind-path-svg .forecast-path').first().getAttribute('d');
   await page.selectOption('#release-select','15');
@@ -136,13 +146,11 @@ try {
     const mobile=await browser.newPage({viewport:{width:390,height:844},deviceScaleFactor:1});
   try{
     await mobile.goto(`${origin}/`,{waitUntil:'domcontentloaded'});
-    await mobile.waitForFunction(()=>document.querySelectorAll('.mini-map-card').length===4,null,{timeout:25000});
+    await mobile.waitForFunction(()=>document.querySelector('.forecast-path'),null,{timeout:25000});
     const mobileLayout=await mobile.evaluate(()=>({top:document.querySelector('#map').getBoundingClientRect().top, width:document.documentElement.clientWidth, scroll:document.documentElement.scrollWidth}));
     assert.ok(mobileLayout.top<440,'Map should start within the first phone viewport');
     assert.ok(mobileLayout.scroll<=mobileLayout.width,'Page should not scroll sideways');
-    const cols=await mobile.evaluate(()=>getComputedStyle(document.querySelector('.mini-map-grid')).gridTemplateColumns);
-    assert.equal(cols.trim().split(/\s+/).length,1,'Mobile should show one mini-map column');
-    await mobile.locator('.mini-map-card[data-level="10m"]').screenshot({path:'browser-mobile-minis.png'});
+    assert.equal(await mobile.locator('#altitude-compare').count(),0);
   }finally{await mobile.close();}
     assert.deepEqual(errors,[],'No uncaught JavaScript errors');
   console.log('PASS browser map overlay and controls:',details);

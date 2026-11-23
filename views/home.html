@@ -39,18 +39,6 @@
         </aside>
       </div>
       <div class="metrics" aria-label="Forecast details"><div class="metric"><div class="metric-label">Scenario date</div><div class="metric-value" id="event-date">NOV 25</div><div class="metric-foot">Hypothetical release times</div></div><div class="metric"><div class="metric-label">Forecast data</div><div class="metric-foot" id="updated-foot">Awaiting data</div></div><div class="metric"><div class="metric-label">Models available</div><div class="metric-value" id="model-count">—</div><div class="metric-foot">GFS · RRFS · ECMWF</div></div><div class="metric"><div class="metric-label">Selected path &amp; route</div><div class="metric-value smaller" id="route-distance">—</div><div class="metric-foot">Geometric proximity, not exposure</div></div></div>
-      <div class="altitude-compare" id="altitude-compare">
-        <div class="compare-header">
-          <div>
-            <div class="kicker">ALTITUDE COMPARISON · SAME GEOGRAPHIC SCALE</div>
-            <h3>Four heights. Four possible paths.</h3>
-            <p>Compare the forecast wind tracks at the same time and geographic scale. Select a panel to isolate that altitude on the large map.</p>
-          </div>
-          <button type="button" id="mini-map-show-all" class="mini-map-reset">Show all four on main map</button>
-        </div>
-        <div class="mini-map-grid" id="mini-map-grid" aria-label="Four synchronized altitude comparison maps"></div>
-        <p class="compare-disclaimer">Schematic geographic reference with no additional map-tile downloads. Each line is a fixed-altitude air-parcel trajectory, not a hazardous plume or fallout extent. Long-range paths may be incomplete.</p>
-      </div>
       <div class="model-error" id="error-message" hidden></div>
       <div class="microcopy">Trajectory calculations use spatially and temporally interpolated wind vectors at a fixed level (15-minute RK2 integration). They omit plume rise, vertical motion, turbulence, settling, deposition, chemistry, precipitation scavenging and exposure.</div>
     </section>
