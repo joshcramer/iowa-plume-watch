@@ -16,7 +16,7 @@ ROOT=Path(__file__).resolve().parents[1]
 EVENT=datetime(2026,11,25)
 RELEASES=(9,12,15)
 FAR_LATS=list(range(27,52,2))
-FAR_LONS=list(range(-117,-82,2))
+FAR_LONS=list(range(-105,-68,2))
 SITE=(40.825518,-91.266502)
 OUT=ROOT/'data'/'extended-tracks.json'
 DELTA=.25
@@ -113,7 +113,7 @@ def regional_grid(key,endpoint,model_id):
                 raise RuntimeError('Incomplete regional wind variables')
             locations.append({'requested_lat':lat,'requested_lon':lon,
                               'hourly':{'time':times,**{v:hourly[v] for v in variables}}})
-        time.sleep(.15)
+        time.sleep(.5)
     return {'grid':{'lats':FAR_LATS,'lons':FAR_LONS},'locations':locations}
 
 def main():
