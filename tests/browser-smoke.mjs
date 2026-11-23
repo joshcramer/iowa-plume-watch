@@ -72,9 +72,11 @@ try {
   await page.locator('#map').screenshot({path:'browser-map-default.png'});
   const first=await page.locator('.wind-path-svg .forecast-path').first().getAttribute('d');
   await page.selectOption('#release-select','15');
-  await page.locator('#duration-range').fill('4');
+  await page.selectOption('#horizon-select','24');
+  assert.equal(await page.locator('#timeline-slider').getAttribute('max'),'24');
+  await page.locator('#timeline-slider').fill('4');
   const second=await page.locator('.wind-path-svg .forecast-path').first().getAttribute('d');
-  assert.notEqual(first,second,'Changing release time or duration must change the rendered geometry');
+  assert.notEqual(first,second,'Changing release time or forecast horizon must update the rendered geometry');
   const before=await page.locator('.wind-path-svg .forecast-path').count();
   await page.locator('#level-controls input[data-level="10m"]').uncheck();
   const after=await page.locator('.wind-path-svg .forecast-path').count();

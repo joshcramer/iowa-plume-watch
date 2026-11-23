@@ -45,3 +45,8 @@
 .key-line.faded{height:3px;opacity:.35}
 #map .wind-path-svg .hour-tick{pointer-events:all;cursor:help}
 #map .wind-path-svg .selected-time-marker{pointer-events:all;cursor:help}
+
+.long-range-warning{margin-top:12px;border-left:3px solid #dca976;background:#342c28;color:#f0d9c6;padding:10px 12px;font-size:11.5px;line-height:1.55}
+.long-range-warning[hidden]{display:none}
+.map-view-toggle{border:1px solid #3c7780;background:#153644;color:#a7eae7;padding:5px 10px;border-radius:6px;font-size:11px;cursor:pointer}
+.map-view-toggle:hover,.map-view-toggle:focus-visible{border-color:#7ce9e1;background:#225663;outline:none}

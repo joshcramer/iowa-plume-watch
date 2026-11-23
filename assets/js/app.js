@@ -2,12 +2,26 @@ import {EVENT_DATE,PLANT,PLACES,ROUTE,LEVELS,integrate,sourceWind,toCompass,clos
 import {createTransportOverlay,clockAt} from './overlay.js';
 
 const el=id=>document.getElementById(id);
-const state={snapshot:null,model:'',release:12,duration:8,enabled:new Set(LEVELS.map(x=>x.key)),layers:[],map:null,routeLayer:null,transportOverlay:null,elapsed:4,showTimeDots:false,viewKey:'',loadError:''};
+const state={snapshot:null,model:'',release:12,duration:8,enabled:new Set(LEVELS.map(x=>x.key)),layers:[],map:null,routeLayer:null,transportOverlay:null,elapsed:4,showTimeDots:false,extended:null,viewMode:'local',viewKey:'',loadError:''};
 const formatDate=(iso,withYear=false)=>iso?new Intl.DateTimeFormat('en-US',{timeZone:'America/Chicago',month:'short',day:'numeric', ...(withYear?{year:'numeric'}:{}),hour:'numeric',minute:'2-digit'}).format(new Date(iso))+' CST':'—';
 const escapeText=str=>String(str??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const miles=km=>`${(km/1.609344).toFixed(1)} mi`;
 const mph=kmh=>`${(kmh/1.609344).toFixed(1)} mph`;
 let timelineTimer=null;
+function horizonTrack(model,key){
+  const near=integrate(model,key,state.release,state.duration);
+  if(state.duration<=8)return near;
+  const extended=state.extended;
+  if(extended?.status==='extended-trajectory' &&
+     extended?.source_snapshot_utc===state.snapshot?.fetched_at_utc){
+    const candidate=extended.paths?.[state.model]?.[String(state.release)]?.[key];
+    if(candidate?.points?.length>=2 && Number.isFinite(candidate.hours_reached)){
+      return {...candidate,points:candidate.points.filter(p=>p.h<=state.duration+1e-7),
+               truncated:candidate.hours_reached+1e-7<state.duration};
+    }
+  }
+  return near;
+}
 function pauseTimeline(){
   if(timelineTimer!==null){clearInterval(timelineTimer);timelineTimer=null;}
   const play=el('timeline-play');
@@ -48,7 +62,7 @@ function installTimeline(){
     el('timeline-play').textContent='Ⅱ Pause';
     el('timeline-play').setAttribute('aria-label','Pause time progression');
     timelineTimer=setInterval(()=>{
-      state.elapsed=Math.min(state.duration,state.elapsed+.25);
+      state.elapsed=Math.min(state.duration,state.elapsed+(state.duration>24?1:state.duration>8?.5:.25));
       updateTimeline();
       if(state.elapsed>=state.duration-1e-7)pauseTimeline();
     },400);
@@ -90,7 +104,19 @@ function installControls(){
     levels.appendChild(item);
   }
   el('release-select').addEventListener('change',e=>{pauseTimeline();state.release=Number(e.target.value);safeRender();});
-  el('duration-range').addEventListener('input',e=>{pauseTimeline();state.duration=Number(e.target.value);el('duration-label').textContent=`${state.duration} ${state.duration===1?'hour':'hours'}`;safeRender();});
+  el('horizon-select').addEventListener('change',e=>{
+    pauseTimeline();
+    state.duration=Number(e.target.value);
+    state.elapsed=state.duration;
+    state.viewMode=state.duration>8?'all':'local';
+    state.viewKey='';
+    safeRender();
+  });
+  el('map-view-toggle').addEventListener('click',()=>{
+    state.viewMode=state.viewMode==='all'?'local':'all';
+    state.viewKey='';
+    safeRender();
+  });
   el('model-select').addEventListener('change',e=>{state.model=e.target.value;safeRender();});
 }
 function statusClass(snapshot){
@@ -129,7 +155,7 @@ function render(){
   const displayTracks=[];
   for(const level of LEVELS){
     const forecast=sourceWind(model,level.key,state.release);
-    const traj=integrate(model,level.key,state.release,state.duration);
+    const traj=horizonTrack(model,level.key);
     if(!forecast){winds.push(`<div class="wind-row"><div><strong>${escapeText(level.label)}</strong></div><div>Unavailable</div><div>—</div></div>`);continue;}
     const towards=(forecast.comingFrom+180)%360;
     winds.push(`<div class="wind-row"><div><strong><i class="color-marker" style="background:${level.color};margin-right:8px"></i>${escapeText(level.label)}</strong><small>${escapeText(level.note)}</small></div><div class="wind-from"><span class="wind-arrow" style="transform:rotate(${towards}deg)">↑</span>${toCompass(forecast.comingFrom)} · ${mph(forecast.speedKmh)}</div><div class="wind-to">${toCompass(towards)} · ${Math.round(towards)}°</div></div>`);
@@ -147,24 +173,37 @@ function render(){
   if(metrics.length){
     // Center the viewport on the trajectories AND the airport corridor.
     // Previously the 8-hour paths could run off-screen at the fixed zoom.
-    const viewKey=[state.snapshot?.fetched_at_utc,state.model,state.release,state.duration,[...state.enabled].sort().join(',')].join('|');
+    const viewKey=[state.snapshot?.fetched_at_utc,state.extended?.generated_at_utc,state.model,state.release,state.duration,state.viewMode,[...state.enabled].sort().join(',')].join('|');
     if(state.map && viewKey!==state.viewKey && displayPaths.length){
       try {
         state.map.invalidateSize({pan:false});
-        const locations=[...displayPaths, ...ROUTE.map(p=>[p.lat,p.lon]), [PLANT.lat,PLANT.lon]];
+        const locations=[...(state.viewMode==='all'?displayPaths:[]),...ROUTE.map(p=>[p.lat,p.lon]),[PLANT.lat,PLANT.lon]];
         state.map.fitBounds(L.latLngBounds(locations),{padding:[25,25],maxZoom:8,animate:false});
         state.viewKey=viewKey;
       } catch(err){
         console.error('Could not frame wind trajectories',err);
       }
     }
-    const incomplete=metrics.filter(m=>m.traj.truncated).length;
-    overlayStatus.textContent=`${metrics.length} forecast air-parcel path${metrics.length===1?'':'s'} plotted for ${model.name} (${state.release}:00 CST, ${state.duration}h).${incomplete?` ${incomplete} shortened due to missing/out-of-grid winds.`:''} Wind paths only — not a lead plume or deposition estimate.`;
+    el('map-view-toggle').textContent=state.viewMode==='all'?'Focus on Iowa':'Show full tracks';
+    const incomplete=metrics.filter(m=>m.traj.truncated||m.traj.points.at(-1).h+1e-7<state.duration).length;
+    const reached=Math.max(...metrics.map(m=>m.traj.points.at(-1).h));
+    const longInfo=state.duration>8
+      ?(state.extended?.source_snapshot_utc===state.snapshot?.fetched_at_utc
+         ?' Extended paths use coarse (~2°) regional wind interpolation; uncertainty grows significantly after 8 hours.'
+         :' Regional model data have not matched the current local forecast snapshot; paths end where known winds end.')
+      :'';
+    el('long-range-warning').textContent=state.duration>8
+      ?(`${incomplete} of ${metrics.length} paths end before +${state.duration}h. Longest available track: +${reached}h.`+longInfo)
+      :'';
+    el('long-range-warning').hidden=state.duration<=8;
+
+    overlayStatus.textContent=`${metrics.length} modeled air-parcel path${metrics.length===1?'':'s'} displayed for ${model.name} (+${state.duration}h selection).${incomplete?` ${incomplete} stop before the selected horizon.`:''} No lead concentrations or deposition estimates.`;
     const min=Math.min(...metrics.map(m=>m.closest));
     el('route-distance').textContent=miles(min);
     const headline=metrics.map(m=>`${escapeText(m.level.short)}: ${toCompass(m.wind.headingTo)} at ${mph(m.wind.speedKmh)}`).join('<br>');
     el('model-readout').innerHTML=`<b>${escapeText(model.name)}</b><br>${headline}<br><br><b>${miles(min)}</b> minimum path-centerline distance to the approximate airport route.${incomplete?`<br><span style="color:#ffcc86">${incomplete} path(s) truncated due to missing wind data or exiting the sampled grid.</span>`:''}`;
   }else{
+    el('long-range-warning').hidden=true;
     overlayStatus.textContent='No trajectories for this selection. Check the available wind levels, time, and forecast timestamp.';
     el('route-distance').textContent='—';
     el('model-readout').textContent='No wind levels selected, or trajectory data missing. Select one or more available levels.';
@@ -213,6 +252,15 @@ async function loadOfficial(){
     el('source-watch-text').textContent=notices.join(' ');
   }catch{el('source-watch-text').textContent='Source-page change watch unavailable; check primary agency links directly.';}
 }
+async function loadExtended(){
+  try{
+    const r=await fetch('./data/extended-tracks.json',{cache:'no-store'});
+    if(!r.ok)throw Error('HTTP '+r.status);
+    const snap=await r.json();
+    state.extended=snap?.schema===1 && snap?.status==='extended-trajectory'?snap:null;
+  }catch(err){state.extended=null;console.warn('Regional forecast paths unavailable:',err);}
+  safeRender();
+}
 function safeRender(){
   try { render(); }
   catch(err){
@@ -222,7 +270,7 @@ function safeRender(){
     el('overlay-status').textContent=state.loadError;
   }
 }
-makeMap();installControls();installTimeline();safeRender();loadForecast();loadOfficial();
+makeMap();installControls();installTimeline();safeRender();loadForecast();loadExtended();loadOfficial();
 // A tab left open picks up newly published snapshots without a page reload.
-setInterval(()=>{loadForecast();loadOfficial();},5*60*1000);
-document.addEventListener('visibilitychange',()=>{if(!document.hidden){loadForecast();loadOfficial();}});
+setInterval(()=>{loadForecast();loadExtended();loadOfficial();},5*60*1000);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden){loadForecast();loadExtended();loadOfficial();}});
