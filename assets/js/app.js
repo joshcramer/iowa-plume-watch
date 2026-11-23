@@ -1,8 +1,10 @@
 import {EVENT_DATE,PLANT,PLACES,ROUTE,LEVELS,integrate,sourceWind,toCompass,closestToRoute,validateSnapshot} from './trajectory.js';
 import {createTransportOverlay,clockAt} from './overlay.js';
+import {inspectNearestTrack,formatElapsed} from './inspect.js';
+import {createMiniMaps} from './minimaps.js';
 
 const el=id=>document.getElementById(id);
-const state={snapshot:null,model:'',release:12,duration:8,enabled:new Set(LEVELS.map(x=>x.key)),layers:[],map:null,routeLayer:null,transportOverlay:null,elapsed:4,showTimeDots:false,extended:null,viewMode:'all',viewKey:'',loadError:''};
+const state={snapshot:null,model:'',release:12,duration:8,enabled:new Set(LEVELS.map(x=>x.key)),layers:[],map:null,routeLayer:null,transportOverlay:null,miniMaps:null,displayTracks:[],elapsed:4,showTimeDots:false,extended:null,viewMode:'all',viewKey:'',loadError:''};
 const formatDate=(iso,withYear=false)=>iso?new Intl.DateTimeFormat('en-US',{timeZone:'America/Chicago',month:'short',day:'numeric', ...(withYear?{year:'numeric'}:{}),hour:'numeric',minute:'2-digit'}).format(new Date(iso))+' CST':'—';
 const escapeText=str=>String(str??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const miles=km=>`${(km/1.609344).toFixed(1)} mi`;
@@ -44,6 +46,8 @@ function updateTimeline(){
     const span=document.createElement('span');span.textContent='+'+hour+'h';return span;
   }));
   state.transportOverlay?.setElapsed(state.elapsed);
+  state.miniMaps?.setElapsed(state.elapsed);
+  state.hoverInspector?.hide();
 }
 function installTimeline(){
   el('time-dots-toggle').addEventListener('change',event=>{
@@ -70,6 +74,80 @@ function installTimeline(){
   updateTimeline();
 }
 
+
+/** Hover uses nearest *modeled* air-parcel segment, never a contamination edge. */
+function createHoverInspector(map){
+  const root=map.getContainer();
+  const panel=document.createElement('div');
+  panel.id='track-inspect';
+  panel.className='track-inspect';
+  panel.hidden=true;
+  panel.setAttribute('role','status');
+  const pointer=document.createElement('div');
+  pointer.className='track-inspect-pin';
+  pointer.hidden=true;
+  root.append(panel,pointer);
+  function hide(){panel.hidden=true;pointer.hidden=true;}
+  function examine(event){
+    if(event.pointerType==='touch'&&event.type==='pointermove')return;
+    const box=root.getBoundingClientRect();
+    const x=event.clientX-box.left,y=event.clientY-box.top;
+    if(!Number.isFinite(x)||!Number.isFinite(y)||x<0||y<0||x>box.width||y>box.height){hide();return;}
+    const hit=inspectNearestTrack(state.displayTracks,
+      p=>map.latLngToContainerPoint([p.lat,p.lon]),x,y,18);
+    if(!hit){hide();return;}
+    const color=String(hit.color||'#a1e7df');
+    const distance=miles(hit.pathDistanceKm),fromOrigin=miles(hit.directDistanceKm);
+    const when=clockAt(state.release,hit.elapsedHours);
+    const future=hit.elapsedHours>state.elapsed+.05;
+    panel.innerHTML=
+      '<div class="inspect-heading"><span class="inspect-dot" style="background:'+color+'"></span>'+
+      escapeText(hit.label||hit.levelKey||'Wind trajectory')+
+      '<span class="inspect-phase">'+(future?'Later forecast':'Up to selected time')+'</span></div>'+
+      '<strong class="inspect-elapsed">'+formatElapsed(hit.elapsedHours)+'</strong>'+
+      '<div class="inspect-clock">'+escapeText(when)+'</div>'+
+      '<div class="inspect-metrics"><span>Along modeled path</span><b>'+distance+'</b>'+
+      '<span>From release point</span><b>'+fromOrigin+'</b></div>'+
+      '<p>Single modeled air parcel · not a plume or lead exposure estimate</p>';
+    panel.hidden=false;
+    pointer.hidden=false;
+    pointer.style.left=hit.x+'px';
+    pointer.style.top=hit.y+'px';
+    pointer.style.borderColor=color;
+    const panelWidth=244,panelHeight=175;
+    panel.style.left=Math.round(Math.max(8,Math.min(x+17,box.width-panelWidth-8)))+'px';
+    panel.style.top=Math.round(y>box.height-panelHeight-15?Math.max(6,y-panelHeight-14):Math.max(6,y+15))+'px';
+  }
+  root.addEventListener('pointermove',examine);
+  root.addEventListener('pointerleave',hide);
+  root.addEventListener('pointerdown',event=>{
+    if(event.pointerType==='touch'){
+      // A tap near a line opens the same inspector on tablets/phones.
+      examine(event);
+    }
+  });
+  map.on('movestart zoomstart',hide);
+  return {hide,element:panel};
+}
+function initializeMiniMaps(){
+  const root=el('mini-map-grid');
+  state.miniMaps=createMiniMaps(root,LEVELS,{
+    route:ROUTE,plant:PLANT,places:PLACES,
+    onSelect:level=>{
+      state.enabled=new Set([level]);
+      document.querySelectorAll('#level-controls input[data-level]').forEach(checkbox=>{
+        checkbox.checked=checkbox.dataset.level===level;
+      });
+      safeRender();
+    }
+  });
+  el('mini-map-show-all').addEventListener('click',()=>{
+    state.enabled=new Set(LEVELS.map(level=>level.key));
+    document.querySelectorAll('#level-controls input[data-level]').forEach(checkbox=>checkbox.checked=true);
+    safeRender();
+  });
+}
+
 function makeMap(){
   if(typeof L==='undefined'){el('map-fallback').hidden=false;return;}
   const map=L.map('map',{zoomControl:false,scrollWheelZoom:false,preferCanvas:false}).setView([41.30,-91.35],8);
@@ -91,6 +169,7 @@ function makeMap(){
   // Travel route, site marker and forecast paths are all rendered in the SVG layer.
   state.map=map;
   state.transportOverlay=createTransportOverlay(map,{route:ROUTE,plant:PLANT,places:PLACES});
+  state.hoverInspector=createHoverInspector(map);
 }
 function installControls(){
   const levels=el('level-controls');
@@ -146,6 +225,9 @@ function render(){
   const model=state.snapshot?.models?.[state.model];
   const overlayStatus=el('overlay-status');
   if(!model){
+    state.displayTracks=[];
+    state.miniMaps?.setData({tracks:[],horizon:state.duration,elapsed:state.elapsed,enabled:[...state.enabled],model:state.model});
+    state.hoverInspector?.hide();
     state.transportOverlay?.setTracks([],{elapsedHours:state.elapsed,releaseHour:state.release,showTimeDots:state.showTimeDots});
     updateTimeline();
     overlayStatus.textContent=state.loadError ? `Overlay unavailable: ${state.loadError}` : 'Awaiting live wind paths. No forecast overlay is displayed.';el('route-distance').textContent='Unavailable';el('model-readout').textContent='No live forecast from a validated model is available. The static reference diagrams below remain non-live, illustrative analyses.';el('wind-rows').innerHTML='<div class="empty-winds">No verified numerical upper-air winds loaded yet. Run the forecast workflow in GitHub Actions.</div>';return;}
@@ -153,21 +235,27 @@ function render(){
   const winds=[];
   const displayPaths=[];
   const displayTracks=[];
+  const allMiniTracks=[];
   for(const level of LEVELS){
     const forecast=sourceWind(model,level.key,state.release);
     const traj=horizonTrack(model,level.key);
     if(!forecast){winds.push(`<div class="wind-row"><div><strong>${escapeText(level.label)}</strong></div><div>Unavailable</div><div>—</div></div>`);continue;}
     const towards=(forecast.comingFrom+180)%360;
     winds.push(`<div class="wind-row"><div><strong><i class="color-marker" style="background:${level.color};margin-right:8px"></i>${escapeText(level.label)}</strong><small>${escapeText(level.note)}</small></div><div class="wind-from"><span class="wind-arrow" style="transform:rotate(${towards}deg)">↑</span>${toCompass(forecast.comingFrom)} · ${mph(forecast.speedKmh)}</div><div class="wind-to">${toCompass(towards)} · ${Math.round(towards)}°</div></div>`);
+    if(traj.points.length>=2)allMiniTracks.push({key:level.key,points:traj.points,color:level.color,label:level.label,
+      note:level.note,truncated:traj.truncated});
     if(!state.enabled.has(level.key))continue;
     if(traj.points.length>=2){
       const closest=closestToRoute(traj.points);
       metrics.push({level,closest,traj,wind:forecast});
       displayPaths.push(...traj.points.map(p=>[p.lat,p.lon]));
-      displayTracks.push({points:traj.points,color:level.color,label:level.label,truncated:traj.truncated});
+      displayTracks.push({key:level.key,points:traj.points,color:level.color,label:level.label,truncated:traj.truncated});
     }
   }
+  state.displayTracks=displayTracks;
+  state.hoverInspector?.hide();
   state.transportOverlay?.setTracks(displayTracks,{elapsedHours:state.elapsed,releaseHour:state.release,showTimeDots:state.showTimeDots});
+  state.miniMaps?.setData({tracks:allMiniTracks,horizon:state.duration,elapsed:state.elapsed,enabled:[...state.enabled],model:state.model});
   updateTimeline();
   el('wind-rows').innerHTML=winds.join('');
   if(metrics.length){
@@ -270,7 +358,7 @@ function safeRender(){
     el('overlay-status').textContent=state.loadError;
   }
 }
-makeMap();installControls();installTimeline();safeRender();loadForecast();loadExtended();loadOfficial();
+makeMap();installControls();initializeMiniMaps();installTimeline();safeRender();loadForecast();loadExtended();loadOfficial();
 // A tab left open picks up newly published snapshots without a page reload.
 setInterval(()=>{loadForecast();loadExtended();loadOfficial();},5*60*1000);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden){loadForecast();loadExtended();loadOfficial();}});

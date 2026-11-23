@@ -69,6 +69,36 @@ try {
   assert.match(await page.locator('#timeline-clock').textContent(),/\+2h.*2:00 PM CST/);
   await page.locator('#timeline-slider').fill('4');
 
+  // Hover inspection at the mid-point of a visible active trajectory.
+  const hoverPoint=await page.evaluate(()=>{
+    const p=document.querySelector('.wind-path-svg .forecast-progress');
+    const svg=document.querySelector('.wind-path-svg');
+    const box=svg.getBoundingClientRect();
+    const at=p.getPointAtLength(p.getTotalLength()*0.65);
+    return {x:box.left+at.x,y:box.top+at.y};
+  });
+  await page.mouse.move(hoverPoint.x,hoverPoint.y);
+  await page.waitForFunction(()=>document.querySelector('#track-inspect')?.hidden===false,null,{timeout:10000});
+  const inspected=await page.locator('#track-inspect').textContent();
+  assert.match(inspected,/modeled path|modeled air parcel/i,'Hover inspector must explain meaning');
+  assert.match(inspected,/CST/,'Hover inspector must show event-local clock time');
+  assert.match(inspected, /\+\d+h/,'Hover inspector must show elapsed time');
+  await page.mouse.move(25,25);
+  // Four mini-maps must use the same geographic projection and follow the timeline.
+  const cards=page.locator('.mini-map-card');
+  assert.equal(await cards.count(),4);
+  assert.equal(await page.locator('.mini-map-forecast-line').count(),0); // regression selector intentionally empty; real class is mini-forecast-line
+  assert.ok(await page.locator('.mini-forecast-line').count()>=3);
+  const markerBeforeMini=await page.locator('.mini-map-card[data-level="10m"] .mini-time-marker').getAttribute('cx');
+  await page.locator('#timeline-slider').fill('3');
+  const markerAfterMini=await page.locator('.mini-map-card[data-level="10m"] .mini-time-marker').getAttribute('cx');
+  assert.notEqual(markerBeforeMini,markerAfterMini,'Mini-maps must respond to shared elapsed time');
+  await page.locator('.mini-map-card[data-level="850hPa"]').click();
+  assert.equal(await page.locator('.wind-path-svg .forecast-path').count(),1,'Choosing a mini map isolates that altitude');
+  await page.locator('#mini-map-show-all').click();
+  assert.ok(await page.locator('.wind-path-svg .forecast-path').count()>=3,'Show all restores main map tracks');
+  await page.locator('#timeline-slider').fill('4');
+  await page.locator('#altitude-compare').screenshot({path:'browser-mini-maps.png'});
   await page.locator('#map').screenshot({path:'browser-map-default.png'});
   const first=await page.locator('.wind-path-svg .forecast-path').first().getAttribute('d');
   await page.selectOption('#release-select','15');

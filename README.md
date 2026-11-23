@@ -98,3 +98,9 @@ The **8h** setting uses the original 9×9 near-Iowa wind grid. The **24h** and *
 ### Forecast access and non-commercial API usage
 
 The public [Open-Meteo API](https://open-meteo.com/en/terms) is key-free for non-commercial use, subject to fair-use limits and attribution. The scheduled regional collector requests dozens of multi-coordinate forecasts and may be rate-limited or temporarily unavailable. If the forecast provider does not return a complete regional grid, the affected longer paths must stop early and the interface states why. Commercial deployment requires reviewing Open-Meteo's separate commercial API terms; no hidden key is present in this repository.
+
+### Inspect trajectories and compare altitude panels
+
+Hover near a colored trajectory on the main map (or tap on mobile) to inspect the nearest interpolated 15-minute path segment. The displayed elapsed time and CST clock time refer to a **hypothetical release**; distances are calculated along the modeled centerline and directly from the site, **not** concentrations or deposition. The inspector does not identify affected people or risk.
+
+The four SVG mini-maps compare 10 m, 80 m, 925 hPa and 850 hPa at an identical geographic scale, synchronized to the same release time, forecast model, horizon, and elapsed-time scrubber. They intentionally do not make extra third-party tile requests. Clicking a panel isolates that altitude on the main map; “Show all four” restores the comparison. Missing weather levels are displayed as unavailable, and truncated regional forecasts are not extrapolated.
