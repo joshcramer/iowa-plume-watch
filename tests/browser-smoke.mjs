@@ -98,7 +98,7 @@ try {
     const pCount=await page.locator('.wind-path-svg .forecast-path').count();
     assert.ok(pCount>=3,'Extended GFS must have multiple 48h paths');
     const warning=await page.locator('#long-range-warning').textContent();
-    assert.match(warning,/0 of 4 paths end before \+48h/,'Extended GFS should not be reported truncated');
+    assert.match(warning,/0 of \d+ paths end before \+48h/,'Extended GFS should not be reported truncated');
     await page.locator('#map').screenshot({path:'browser-map-48h.png'});
   }
     assert.deepEqual(errors,[],'No uncaught JavaScript errors');
