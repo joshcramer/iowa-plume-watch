@@ -50,7 +50,7 @@
       <div class="section-header"><div><div class="kicker">03 / OFFICIAL STATUS</div><h2>Official updates</h2></div></div>
       <div class="status-grid">
         <article class="status-card">
-          <div class="status-overline">LATEST VERIFIED SCHEDULE NOTICE</div>
+          <div class="status-overline">LAST REVIEWED SCHEDULE NOTICE</div>
           <h3 id="official-heading">{{official_heading}}</h3><p id="official-text">{{official.summary}}</p>
           <a id="official-link" href="{{official.source_url}}" target="_blank" rel="noopener noreferrer">Read the agency notice ↗</a>
           <div class="status-small" id="official-reviewed">Agency notice published {{official.published_date}}</div>
@@ -62,9 +62,9 @@
         </article>
       </div>
       <div class="official-history" id="official-update-log">
-        <h3>Official update log</h3>
-        <p class="section-note">Selected agency announcements, newest first. Earlier dates may have been superseded.</p>
-        <ol aria-label="Official announcements">
+        <h3>Notable events and official notices</h3>
+        <p class="section-note">Reviewed announcements and statements, newest first. A date in a past notice is not confirmation the operation will go ahead.</p>
+        <ol aria-label="Notable events and official notices">
           {{#for item in updates}}
           <li><div class="status-overline"><time datetime="{{item.published_date}}">{{item.published_date}}</time> · {{item.agency}}</div><div><h4>{{item.headline}}</h4><p>{{item.summary}}</p><a href="{{item.source_url}}" target="_blank" rel="noopener noreferrer">Original announcement ↗</a></div></li>
           {{/for}}
