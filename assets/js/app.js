@@ -43,13 +43,13 @@ function installControls(){
     item.innerHTML=`<input type="checkbox" data-level="${level.key}" checked><i class="color-marker" style="background:${level.color}"></i> ${escapeText(level.label)}`;
     item.querySelector('input').addEventListener('change',e=>{
       if(e.target.checked)state.enabled.add(level.key);else state.enabled.delete(level.key);
-      render();
+      safeRender();
     });
     levels.appendChild(item);
   }
   el('release-select').addEventListener('change',e=>{state.release=Number(e.target.value);safeRender();});
-  el('duration-range').addEventListener('input',e=>{state.duration=Number(e.target.value);el('duration-label').textContent=`${state.duration} ${state.duration===1?'hour':'hours'}`;render();});
-  el('model-select').addEventListener('change',e=>{state.model=e.target.value;render();});
+  el('duration-range').addEventListener('input',e=>{state.duration=Number(e.target.value);el('duration-label').textContent=`${state.duration} ${state.duration===1?'hour':'hours'}`;safeRender();});
+  el('model-select').addEventListener('change',e=>{state.model=e.target.value;safeRender();});
 }
 function statusClass(snapshot){
   if(snapshot?.status!=='forecast'||!snapshot.fetched_at_utc)return ['Awaiting forecast','pending'];
