@@ -1,7 +1,8 @@
 import {EVENT_DATE,PLANT,PLACES,ROUTE,LEVELS,integrate,sourceWind,toCompass,closestToRoute,validateSnapshot} from './trajectory.js';
+import {createTransportOverlay} from './overlay.js';
 
 const el=id=>document.getElementById(id);
-const state={snapshot:null,model:'',release:12,duration:8,enabled:new Set(LEVELS.map(x=>x.key)),layers:[],map:null,routeLayer:null,viewKey:'',loadError:''};
+const state={snapshot:null,model:'',release:12,duration:8,enabled:new Set(LEVELS.map(x=>x.key)),layers:[],map:null,routeLayer:null,transportOverlay:null,viewKey:'',loadError:''};
 const formatDate=(iso,withYear=false)=>iso?new Intl.DateTimeFormat('en-US',{timeZone:'America/Chicago',month:'short',day:'numeric', ...(withYear?{year:'numeric'}:{}),hour:'numeric',minute:'2-digit'}).format(new Date(iso))+' CST':'—';
 const escapeText=str=>String(str??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const miles=km=>`${(km/1.609344).toFixed(1)} mi`;
@@ -35,6 +36,7 @@ function makeMap(){
       .bindTooltip(p.name,{permanent:key==='davenport',direction:'right',offset:[7,0]}).addTo(map);
   }
   state.map=map;
+  state.transportOverlay=createTransportOverlay(map);
 }
 function installControls(){
   const levels=el('level-controls');
@@ -78,10 +80,12 @@ function render(){
   const model=state.snapshot?.models?.[state.model];
   const overlayStatus=el('overlay-status');
   if(!model){
+    state.transportOverlay?.setTracks([]);
     overlayStatus.textContent=state.loadError ? `Overlay unavailable: ${state.loadError}` : 'Awaiting live wind paths. No forecast overlay is displayed.';el('route-distance').textContent='Unavailable';el('model-readout').textContent='No live forecast from a validated model is available. The static reference diagrams below remain non-live, illustrative analyses.';el('wind-rows').innerHTML='<div class="empty-winds">No verified numerical upper-air winds loaded yet. Run the forecast workflow in GitHub Actions.</div>';return;}
   const metrics=[];
   const winds=[];
   const displayPaths=[];
+  const displayTracks=[];
   for(const level of LEVELS){
     const forecast=sourceWind(model,level.key,state.release);
     const traj=integrate(model,level.key,state.release,state.duration);
@@ -93,17 +97,10 @@ function render(){
       const closest=closestToRoute(traj.points);
       metrics.push({level,closest,traj,wind:forecast});
       displayPaths.push(...traj.points.map(p=>[p.lat,p.lon]));
-      if(state.map){
-        const path=L.polyline(traj.points.map(p=>[p.lat,p.lon]),{color:level.color,weight:4,opacity:.91,dashArray:traj.truncated?'3,7':undefined}).addTo(state.map);
-        const last=traj.points[traj.points.length-1];
-        path.bindPopup(`<b>${escapeText(level.label)} idealized trajectory</b><br>Release: ${state.release}:00 CST<br>Simulated: ${last.h.toFixed(2)} h<br>Closest geometric approach to approximate driving route: ${miles(closest)}<br><em>Not a lead hazard boundary.</em>`);
-        state.layers.push(path);
-        const endmark=L.circleMarker([last.lat,last.lon],{radius:5,color:level.color,fillColor:level.color,fillOpacity:1}).addTo(state.map);
-        endmark.bindTooltip(`${escapeText(level.short)} +${last.h.toFixed(1)}h${traj.truncated?' · incomplete':''}`);
-        state.layers.push(endmark);
-      }
+      displayTracks.push({points:traj.points,color:level.color,label:level.label,truncated:traj.truncated});
     }
   }
+  state.transportOverlay?.setTracks(displayTracks);
   el('wind-rows').innerHTML=winds.join('');
   if(metrics.length){
     // Center the viewport on the trajectories AND the airport corridor.
