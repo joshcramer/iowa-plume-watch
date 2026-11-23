@@ -56,8 +56,9 @@ export function sampleWind(model, lat, lon, levelKey, localTime, fractionalHour=
   const la = bounds(model.grid.lats,lat), lo=bounds(model.grid.lons,lon);
   if (!la || !lo) return null;
   const columns = model.grid.lons.length;
-  const idx = model.locations[0].hourly?.time?.indexOf(localTime) ?? -1;
-  if (idx < 0) return null;
+  const times = model.locations[0].hourly?.time;
+  const idx = times?.indexOf(localTime) ?? -1;
+  if (idx < 0 || !times[idx+1] || Date.parse(times[idx+1]+'Z')-Date.parse(localTime+'Z')!==3600000) return null;
   const [i,fy]=la,[j,fx]=lo;
   const a=getAt(model.locations[i*columns+j],levelKey,idx,fractionalHour),
     b=getAt(model.locations[i*columns+j+1],levelKey,idx,fractionalHour),

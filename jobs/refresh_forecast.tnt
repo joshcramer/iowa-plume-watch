@@ -1,8 +1,8 @@
-import { now } from "std/time"
+import { now, format_in } from "std/time"
 import { parse_json, stringify } from "std/json"
 import { in_scenario_window, official_status } from "lib/official"
 import { last_attempt, record_attempt, store_weather, persisted_payload } from "lib/snapshots"
-import { refresh_selected } from "lib/forecast_feed"
+import { exploration_window, refresh_window } from "lib/forecast_feed"
 import { live_publication_targets } from "lib/model_publications"
 
 job RefreshForecast on forecasts (retry: 0, timeout: 840, unique: 900) {
@@ -13,10 +13,14 @@ job RefreshForecast on forecasts (retry: 0, timeout: 840, unique: 900) {
             record_attempt("forecast-metadata")
             let date = status["scenario_date"]
             let forecast = unwrap(parse_json(unwrap(persisted_payload("forecast"))))
-            let targets = live_publication_targets(date, forecast, timestamp, fn(key) { return last_attempt("weather-#{date}-#{key}") })
+            let window = exploration_window(date, format_in(timestamp, "America/Chicago", "%Y-%m-%d"))
+            // Upgrade legacy snapshots on the next eligible check without
+            // waiting for a different model run. Keep the same retry budget.
+            let previous = if is_string(forecast["explore_through"]) { forecast } else { map {} }
+            let targets = live_publication_targets(date, previous, timestamp, fn(key) { return last_attempt("weather-#{date}-#{key}") })
             if len(targets) > 0 {
                 let extended = unwrap(parse_json(unwrap(persisted_payload("extended-tracks"))))
-                let bundle = refresh_selected(date, targets, map { "forecast": forecast, "extended": extended }, fn(key) { record_attempt("weather-#{date}-#{key}") })
+                let bundle = refresh_window(date, window, targets, map { "forecast": forecast, "extended": extended }, fn(key) { record_attempt("weather-#{date}-#{key}") })
                 if is_none(bundle["forecast"]) { unwrap(Err("Forecast refresh failed: " + stringify(bundle["errors"]))) }
                 store_weather(bundle)
             }

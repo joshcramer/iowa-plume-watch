@@ -1,15 +1,17 @@
-import {PLANT,LEVELS,integrate,sourceWind,toCompass,validateSnapshot} from './trajectory.js?v=ntnt-5';
+import {PLANT,LEVELS,integrate,sourceWind,toCompass,validateSnapshot,localHour} from './trajectory.js?v=ntnt-8';
 import {createTransportOverlay,clockAt} from './overlay.js?v=ntnt-6';
 import {inspectNearestTrack,formatElapsed} from './inspect.js';
 
 const el=id=>document.getElementById(id);
 // Prefer GFS’s full set of wind levels, regardless of snapshot key order.
 const MODEL_ORDER=['gfs','rrfs','ecmwf'];
-const state={scenarioDate:el('forecast').dataset.scenarioDate||null,archiveOn:el('forecast').dataset.archiveOn||null,snapshot:null,model:'',release:12,duration:8,enabled:new Set(LEVELS.map(x=>x.key)),map:null,transportOverlay:null,displayTracks:[],elapsed:4,showTimeDots:false,extended:null,viewMode:'all',viewKey:'',loadError:''};
+const state={officialDate:el('forecast').dataset.scenarioDate||null,selectedDate:'',archiveOn:el('forecast').dataset.archiveOn||null,snapshot:null,model:'',release:12,duration:8,officialDuration:8,enabled:new Set(LEVELS.map(x=>x.key)),map:null,transportOverlay:null,displayTracks:[],elapsed:4,showTimeDots:false,extended:null,viewMode:'all',viewKey:'',loadError:'',get scenarioDate(){return this.selectedDate||this.officialDate;}};
 const formatDate=(iso,withYear=false)=>iso?new Intl.DateTimeFormat('en-US',{timeZone:'America/Chicago',month:'short',day:'numeric', ...(withYear?{year:'numeric'}:{}),hour:'numeric',minute:'2-digit',timeZoneName:'short'}).format(new Date(iso)):'—';
 const shortDate=date=>date?new Intl.DateTimeFormat('en-US',{timeZone:'UTC',month:'short',day:'numeric'}).format(new Date(date+'T00:00:00Z')):'—';
 const chicagoToday=()=>new Intl.DateTimeFormat('sv-SE',{timeZone:'America/Chicago',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
-const activeSnapshot=()=>state.scenarioDate && state.snapshot?.event_date===state.scenarioDate ? state.snapshot : null;
+const activeSnapshot=()=>state.scenarioDate && state.snapshot?.event_date===state.officialDate ? state.snapshot : null;
+const modelHasWind=(model,date,hour)=>Boolean(date && model?.available_levels?.some(key=>sourceWind(model,key,hour,date)));
+const dateLabel=new Intl.DateTimeFormat('en-US',{timeZone:'UTC',weekday:'short',month:'short',day:'numeric'});
 const escapeText=str=>String(str??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const miles=km=>`${(km/1.609344).toFixed(1)} mi`;
 const mph=kmh=>`${(kmh/1.609344).toFixed(1)} mph`;
@@ -167,10 +169,16 @@ function installControls(){
     item.querySelector('.color-marker').style.backgroundColor=level.color;
     levels.appendChild(item);
   }
-  el('release-select').addEventListener('change',e=>{pauseTimeline();state.release=Number(e.target.value);safeRender();});
+  el('date-select').addEventListener('change',e=>{
+    pauseTimeline();state.selectedDate=e.target.value;
+    state.duration=state.selectedDate?8:state.officialDuration;
+    updateModelOptions();safeRender();
+  });
+  el('release-select').addEventListener('change',e=>{pauseTimeline();state.release=Number(e.target.value);updateModelOptions();safeRender();});
   el('horizon-select').addEventListener('change',e=>{
     pauseTimeline();
     state.duration=Number(e.target.value);
+    state.officialDuration=state.duration;
     state.elapsed=state.duration;
     state.viewMode=state.duration>8?'all':'local';
     state.viewKey='';
@@ -197,6 +205,7 @@ function renderLevelControls(model){
 function scenarioArchived(){return Boolean(state.archiveOn && chicagoToday()>=state.archiveOn);}
 function statusClass(snapshot){
   if(snapshot?.status!=='forecast'||!snapshot.fetched_at_utc)return ['Awaiting forecast','pending'];
+  if(!state.model)return ['No data for this time','pending'];
   const age=(Date.now()-new Date(snapshot.models?.[state.model]?.fetched_at_utc||snapshot.fetched_at_utc).getTime())/3600000;
   if(scenarioArchived())return ['Archived forecast','archive'];
   if(age>9)return ['Stale forecast · check timestamp','stale'];
@@ -205,7 +214,7 @@ function statusClass(snapshot){
 function renderHeader(){
   const s=activeSnapshot();
   const fetched=s?.models?.[state.model]?.fetched_at_utc||s?.fetched_at_utc;
-  const count=Object.keys(s?.models||{}).length;
+  const count=Object.values(s?.models||{}).filter(model=>modelHasWind(model,state.scenarioDate,state.release)).length;
   const [label,kind]=statusClass(s);
   el('forecast-badge').textContent=label;
   el('forecast-badge').dataset.kind=kind;
@@ -219,6 +228,9 @@ function renderHeader(){
   const issue=state.loadError || (!s && state.snapshot?'No wind forecast is available for the current scenario. Paths from the earlier date are not shown.':kind==='stale'?'This model’s last download is more than nine hours old. Its paths may be outdated.':'');
   el('error-message').hidden=!issue;
   el('error-message').textContent=issue;
+  el('horizon-select').value=String(state.duration);
+  el('horizon-select').disabled=Boolean(state.selectedDate);
+  el('horizon-help').textContent=state.selectedDate?'Alternate dates: local only':'longer = less certain';
 }
 function render(){
   renderHeader();
@@ -230,7 +242,8 @@ function render(){
     state.hoverInspector?.hide();
     state.transportOverlay?.setTracks([],{scenarioDate:state.scenarioDate,elapsedHours:state.elapsed,releaseHour:state.release,showTimeDots:state.showTimeDots});
     updateTimeline();
-    overlayStatus.textContent=state.loadError ? `Overlay unavailable: ${state.loadError}` : 'Awaiting live wind paths. No forecast overlay is displayed.';el('model-readout').textContent='No validated forecast is available for this scenario.';el('wind-rows').innerHTML='<div class="empty-winds">No verified numerical upper-air winds loaded yet.</div>';return;}
+    el('long-range-warning').hidden=true;
+    overlayStatus.textContent=state.loadError ? `Overlay unavailable: ${state.loadError}` : 'No forecast wind paths are available for this date and time.';el('model-readout').textContent='No validated forecast is available for this date and time.';el('wind-rows').innerHTML='<div class="empty-winds">No verified numerical upper-air winds loaded yet.</div>';return;}
   const metrics=[];
   const winds=[];
   const displayPaths=[];
@@ -255,7 +268,7 @@ function render(){
   el('wind-rows').innerHTML=winds.join('');
   if(metrics.length){
     // Fit the full tracks, or recenter the local view on the release site.
-    const viewKey=[state.snapshot?.fetched_at_utc,state.extended?.generated_at_utc,state.model,state.release,state.duration,state.viewMode,[...state.enabled].sort().join(',')].join('|');
+    const viewKey=[state.scenarioDate,state.snapshot?.fetched_at_utc,state.extended?.generated_at_utc,state.model,state.release,state.duration,state.viewMode,[...state.enabled].sort().join(',')].join('|');
     if(state.map && viewKey!==state.viewKey && displayPaths.length){
       try {
         state.map.invalidateSize({pan:false});
@@ -299,39 +312,66 @@ async function loadForecast(){
     validateSnapshot(snapshot);
     state.snapshot=snapshot;
     state.loadError='';
+    updateDateOptions();
     updateModelOptions();
     safeRender();
   }catch(err){
     state.loadError=`Forecast unavailable: ${err.message}.`;
     state.snapshot=null;
     state.viewKey='';
+    updateDateOptions();
     updateModelOptions();
     safeRender();
   }
+}
+function updateDateOptions(){
+  const snapshot=state.snapshot?.event_date===state.officialDate?state.snapshot:null;
+  const today=chicagoToday(),dates=[];
+  if(snapshot?.explore_through && !scenarioArchived()){
+    for(let offset=0;offset<=5;offset++){
+      const date=localHour(today,offset*24).slice(0,10);
+      if(date>snapshot.explore_through || date===state.officialDate)continue;
+      if(Object.values(snapshot.models).some(model=>[9,12,15].some(hour=>modelHasWind(model,date,hour))))dates.push(date);
+    }
+  }
+  if(state.selectedDate && !dates.includes(state.selectedDate)){
+    pauseTimeline();state.selectedDate='';state.duration=state.officialDuration;
+  }
+  const selector=el('date-select');
+  const current=state.officialDate?`${shortDate(state.officialDate)} · Army notice`:'No reviewed Army date';
+  selector.replaceChildren(new Option(current,''),...dates.map(date=>new Option(dateLabel.format(new Date(date+'T00:00:00Z')),date)));
+  selector.value=state.selectedDate;
+  selector.disabled=dates.length===0;
+  el('date-help').textContent=dates.length?'What-if dates don’t change the Army schedule. Model coverage varies by date and time.':scenarioArchived()?'The forecast is archived. Only the previously reviewed date is shown.':'No alternate dates in this snapshot.';
 }
 function updateModelOptions(){
   const models=activeSnapshot()?.models??{};
   const names=[...MODEL_ORDER,...Object.keys(models).filter(key=>!MODEL_ORDER.includes(key))]
     .filter(key=>Object.hasOwn(models,key));
   const selection=el('model-select');
-  selection.disabled=names.length===0;
-  selection.replaceChildren(...(names.length?names.map(key=>new Option(models[key].name,key)):[new Option('No model data yet','')]));
-  if(names.length && !names.includes(state.model))state.model=names[0];
-  selection.value=selection.disabled?'':state.model;
+  const available=names.filter(key=>modelHasWind(models[key],state.scenarioDate,state.release));
+  selection.disabled=available.length===0;
+  selection.replaceChildren(...(available.length?[]:[new Option('No data for this time','')]),...names.map(key=>{
+    const option=new Option(models[key].name+(available.includes(key)?'':' · Unavailable'),key);
+    option.disabled=!available.includes(key);
+    return option;
+  }));
+  if(!available.includes(state.model))state.model=available[0]||'';
+  selection.value=state.model;
 }
 async function loadOfficial(){
   try{
     const r=await fetch('/data/official-status.json',{cache:'no-store'});
     if(!r.ok)throw Error(`HTTP ${r.status}`);
     const s=await r.json();
-    const changed=state.scenarioDate!==(s.scenario_date||null);
-    state.scenarioDate=s.scenario_date||null;
+    const changed=state.officialDate!==(s.scenario_date||null);
+    state.officialDate=s.scenario_date||null;
     state.archiveOn=s.archive_on||null;
     el('official-heading').textContent=s.scenario_date?new Intl.DateTimeFormat('en-US',{timeZone:'UTC',weekday:'long',month:'long',day:'numeric'}).format(new Date(s.scenario_date+'T00:00:00Z')):(s.headline||'No verified date');
     el('official-text').textContent=s.summary||'No current schedule verified.';
     el('official-link').href=s.source_url||'https://www.army.mil/asc';
     el('official-reviewed').textContent=s.published_date?`Agency notice published ${shortDate(s.published_date)}${s.reviewed_at_utc?' · Reviewed '+formatDate(s.reviewed_at_utc):''}`:'No reviewed notice';
-    if(changed){pauseTimeline();updateModelOptions();safeRender();}
+    if(changed){pauseTimeline();updateDateOptions();updateModelOptions();safeRender();}
   }catch{el('official-reviewed').textContent='Could not recheck the last reviewed notice';}
   try{
     const r=await fetch('/data/source-watch.json',{cache:'no-store'}),s=await r.json();
@@ -363,7 +403,7 @@ function safeRender(){
     el('overlay-status').textContent=state.loadError;
   }
 }
-makeMap();installControls();installTimeline();safeRender();loadForecast();loadExtended();loadOfficial();
+makeMap();installControls();installTimeline();updateDateOptions();safeRender();loadForecast();loadExtended();loadOfficial();
 // A tab left open picks up newly published snapshots without a page reload.
 setInterval(()=>{loadForecast();loadExtended();loadOfficial();},5*60*1000);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden){loadForecast();loadExtended();loadOfficial();}});

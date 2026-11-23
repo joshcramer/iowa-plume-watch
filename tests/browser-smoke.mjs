@@ -7,6 +7,7 @@ const browser = await chromium.launch({headless:true,args:['--no-sandbox']});
 async function matchSeedScenario(page){
   if(process.env.PLUME_SEED_SCENARIO!=='1')return;
   const snapshot=await page.request.get(`${origin}/data/forecast.json`).then(r=>r.json());
+  await page.clock.setFixedTime(new Date(`${snapshot.event_date}T16:00:00Z`));
   await page.route('**/data/official-status.json',route=>route.fulfill({json:{scenario_date:snapshot.event_date}}));
 }
 
@@ -15,6 +16,7 @@ const page = await browser.newPage({viewport:{width:1280,height:950},deviceScale
 await page.route('**/data/forecast.json', async route=>{
   const response=await route.fetch();
   const forecast=await response.json();
+  if(process.env.PLUME_SEED_SCENARIO==='1')forecast.explore_through='2026-11-26';
   forecast.models=Object.fromEntries(Object.entries(forecast.models).sort(([a],[b])=>a.localeCompare(b)));
   await route.fulfill({response,json:forecast});
 });
@@ -193,6 +195,23 @@ try {
     });
     assert.ok(narrowFits,'Wordmark and GitHub link should fit together at 320 px');
   }finally{await mobile.close();}
+    if(process.env.PLUME_SEED_SCENARIO==='1'){
+      const date=page.getByLabel('Hypothetical release date');
+      const official=await page.locator('#official-heading').textContent();
+      await page.selectOption('#release-select','15');
+      await date.selectOption('2026-11-26');
+      assert.equal(await page.locator('#release-select').inputValue(),'15','Changing day must not change the release time');
+      assert.equal(await page.locator('#horizon-select').inputValue(),'8','Alternate dates offer the local 8-hour view');
+      assert.equal(await page.locator('#horizon-select').isDisabled(),true);
+      assert.match(await page.locator('#timeline-clock').textContent(),/Nov 26.*CT/);
+      assert.ok(await page.locator('.wind-path-svg .forecast-path').count()>0,'Alternate day draws its own tracks');
+      assert.equal(await page.locator('#official-heading').textContent(),official,'Changing day must not change the Army notice');
+      await page.selectOption('#release-select','9');
+      assert.equal(await date.inputValue(),'2026-11-26','Changing time must not change the release day');
+      await date.selectOption('');
+      assert.equal(await page.locator('#horizon-select').isEnabled(),true);
+      assert.equal(await page.locator('#release-select').inputValue(),'9');
+    }
     assert.deepEqual(errors,[],'No uncaught JavaScript errors');
   console.log('PASS browser map overlay and controls:',details);
 } finally {

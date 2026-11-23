@@ -4,7 +4,7 @@ import { parse_query } from "std/url"
 import { split, join } from "std/string"
 import { format_timestamp } from "std/time"
 import { push, slice } from "std/collections"
-import { refresh_selected_from } from "../lib/forecast_feed.tnt"
+import { refresh_selected_from, refresh_window_from, exploration_window } from "../lib/forecast_feed.tnt"
 import { build_forecast_paths } from "../lib/forecast_tracks.tnt"
 
 fn collect_forecast_from(request, pause) -> Map {
@@ -175,6 +175,35 @@ fn test_archived_near_tracks() {
     }
 }
 
+fn test_rolling_window_with_short_model() {
+    let window = exploration_window("2026-11-29", "2026-11-25")
+    assert_eq(window["start"], "2026-11-25")
+    assert_eq(window["through"], "2026-11-30")
+    assert_eq(window["end"], "2026-12-01")
+    let bundle = refresh_window_from("2026-11-29", window, map { "rrfs": map {} }, map {}, fn(url) {
+        let query = parse_query(split(url, "?")[1])
+        assert_eq(query["start_date"], "2026-11-25")
+        assert_eq(query["end_date"], "2026-12-01")
+        let fields = split(query["hourly"], ",")
+        let mut hourly = constant_hourly(fields, 168, 4, 270)
+        for field in fields {
+            let mut values = hourly[field]
+            for h in 84..168 { values[h] = None }
+            hourly[field] = values
+        }
+        return Ok(repeat_location(hourly, 9))
+    }, fn(ms) {}, fn(key) {})
+    let forecast = bundle["forecast"]
+    assert_eq(forecast["event_date"], "2026-11-29")
+    assert_eq(forecast["explore_through"], "2026-11-30")
+    assert_eq(len(forecast["models"]), 1)
+    assert_eq(forecast["models"]["rrfs"]["locations"][0]["hourly"]["wind_speed_10m"][84], None)
+    assert_eq(bundle["extended"]["source_snapshot_utc"], forecast["fetched_at_utc"])
+    assert_eq(bundle["extended"]["paths"]["rrfs"]["12"]["10m"]["hours_reached"], 0)
+}
+
+test_rolling_window_with_short_model()
+print("PASS: rolling local window retains short-model winds without inventing official-day paths")
 test_partial_provider_and_regional_failure()
 print("PASS: partial provider, spatial order, regional failure, and matching track provenance")
 test_regional_completion_with_different_wind()

@@ -104,6 +104,7 @@ input:focus-visible,select:focus-visible,button:focus-visible,a:focus-visible{ou
 
 .footer-inner .footer-credit{margin-top:9px}
 .footer-credit a{color:var(--cyan);text-decoration:underline;text-underline-offset:2px}
+#date-select{min-height:44px}
 
 .official-history{margin-top:24px;border:1px solid var(--line);border-radius:13px;padding:clamp(16px,3vw,26px);background:var(--card)}
 .official-history h3,.official-history h4{margin:0;font-weight:650}.official-history h3{font-size:20px}.official-history ol{list-style:none;padding:0;margin:12px 0 0}.official-history li{display:grid;grid-template-columns:minmax(0,155px) minmax(0,1fr);gap:12px;border-top:1px solid var(--line);padding:14px 0}.official-history li:last-child{padding-bottom:0}.official-history li p{margin:3px 0;color:#bed3d9;font-size:14px}.official-history a{color:#8debe2;font-size:13px;text-decoration:underline;text-underline-offset:3px;display:inline-flex;align-items:center;min-height:36px}.official-history time{font-variant-numeric:tabular-nums}@media(max-width:650px){.official-history li{grid-template-columns:1fr;gap:4px}.official-history a{min-height:44px}}

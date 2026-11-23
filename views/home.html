@@ -28,9 +28,12 @@
           <div class="map-footer"><span><i class="legend-dot" ></i>Detonation site</span><span><i class="legend-line" ></i>Forecast air-parcel paths by altitude</span></div>
           <div id="map-fallback" class="map-fallback" hidden>Base map could not load.</div>
         </div>
-        <aside class="control-panel"><div class="control-title">SCENARIO CONTROLS</div><label class="field-label" for="model-select">Forecast model</label><select id="model-select"><option value="">No model data yet</option></select>
+        <aside class="control-panel"><div class="control-title">SCENARIO CONTROLS</div>
+          <label class="field-label" for="date-select">Hypothetical release date</label><select id="date-select" aria-describedby="date-help" disabled><option value="">{{official.scenario_date}} · Army notice</option></select>
+          <div class="microcopy" id="date-help">Alternate dates depend on model coverage.</div>
           <label class="field-label" for="release-select">Hypothetical release time <span id="release-date">Central time</span></label><select id="release-select"><option value="9">9:00 a.m.</option><option value="12" selected>Noon</option><option value="15">3:00 p.m.</option></select>
-          <label class="field-label" for="horizon-select">Forecast horizon <span>longer = less certain</span></label>
+          <label class="field-label" for="model-select">Forecast model</label><select id="model-select"><option value="">No model data yet</option></select>
+          <label class="field-label" for="horizon-select">Track length <span id="horizon-help">longer = less certain</span></label>
           <select id="horizon-select"><option value="8" selected>8 hours · local detail</option><option value="24">24 hours · regional screening</option><option value="48">48 hours · regional screening</option></select>
           <div id="long-range-warning" class="long-range-warning" role="status" hidden></div>
           <div class="field-label">Wind levels <span>select to display</span></div><div id="level-controls" class="levels"></div>

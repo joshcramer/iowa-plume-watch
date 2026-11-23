@@ -115,8 +115,7 @@ fn project_hours(entry, levels: Array, axis: String, event_date: String, require
     return Ok(projected)
 }
 
-fn load_grid(model: Map, grid: Map, regional: Bool, event_date: String, request, pause) {
-    let end = date_offset(event_date, if regional { 2 } else { 1 })
+fn load_grid(model: Map, grid: Map, regional: Bool, start_date: String, end: String, request, pause) {
     let required_last = if regional { end + "T15:00" } else { end + "T06:00" }
     let batch_limit = if regional { 12 } else { 9 }
     let levels = model["levels"]
@@ -144,7 +143,7 @@ fn load_grid(model: Map, grid: Map, regional: Bool, event_date: String, request,
         let query = build_query(map {
             "latitude": join(batch_lats, ","), "longitude": join(batch_lons, ","),
             "hourly": join(fields, ","), "models": model["id"],
-            "start_date": event_date, "end_date": end, "timezone": TIMEZONE,
+            "start_date": start_date, "end_date": end, "timezone": TIMEZONE,
             "wind_speed_unit": "kmh", "cell_selection": "nearest"
         })
         let result = match request(model["endpoint"] + "?" + query) {
@@ -154,7 +153,7 @@ fn load_grid(model: Map, grid: Map, regional: Bool, event_date: String, request,
         let batch = if is_array(result) { result } else { [result] }
         if len(batch) != stop - start { return Err("Unexpected Open-Meteo location count") }
         for i in start..stop {
-            let hourly = match project_hours(batch[i - start], levels, axis, event_date, required_last) {
+            let hourly = match project_hours(batch[i - start], levels, axis, start_date, required_last) {
                 Ok(value) => value,
                 Err(message) => { return Err(message) }
             }
@@ -162,7 +161,7 @@ fn load_grid(model: Map, grid: Map, regional: Bool, event_date: String, request,
             if !regional && !usable {
                 let times = hourly["time"]
                 for h in 0..len(times) {
-                    if times[h] == event_date + "T12:00" && !is_none(hourly["wind_speed_10m"][h]) && !is_none(hourly["wind_direction_10m"][h]) {
+                    if times[h] == start_date + "T12:00" && !is_none(hourly["wind_speed_10m"][h]) && !is_none(hourly["wind_direction_10m"][h]) {
                         usable = true
                         break
                     }
@@ -179,9 +178,21 @@ fn load_grid(model: Map, grid: Map, regional: Bool, event_date: String, request,
     return Ok(map { "grid": grid, "locations": locations })
 }
 
-// Keep the last validated grid and its matched paths when a provider fails or
-// has no new release. On a new date nothing is carried forward.
-export fn refresh_selected_from(event_date: String, targets: Map, previous: Map, request, pause, before_model) -> Map {
+export fn exploration_window(event_date: String, today: String) -> Map {
+    let event = unwrap(parse_iso(event_date + "T00:00:00Z"))
+    let first = unwrap(parse_iso(today + "T00:00:00Z"))
+    let through = date_offset(today, 5)
+    let last = unwrap(parse_iso(through + "T00:00:00Z"))
+    return map {
+        "start": if event < first { event_date } else { today },
+        "through": through,
+        "end": date_offset(if event > last { event_date } else { through }, 1)
+    }
+}
+
+// Keep last-good local winds and their matched regional paths per model.
+// The event date still labels the official scenario and regional tracks only.
+export fn refresh_window_from(event_date: String, window: Map, targets: Map, previous: Map, request, pause, before_model) -> Map {
     let started = to_iso(now())
     let prior_forecast = previous["forecast"] ?? map {}
     let prior_extended = previous["extended"] ?? map {}
@@ -196,7 +207,7 @@ export fn refresh_selected_from(event_date: String, targets: Map, previous: Map,
         let key = model["key"]
         if is_none(targets[key]) { continue }
         before_model(key)
-        match load_grid(model, LOCAL_GRID, false, event_date, request, pause) {
+        match load_grid(model, LOCAL_GRID, false, window["start"], window["end"], request, pause) {
             Ok(grid) => {
                 let times = grid["locations"][0]["hourly"]["time"]
                 let near = map {
@@ -208,7 +219,7 @@ export fn refresh_selected_from(event_date: String, targets: Map, previous: Map,
                 let mut regional = map {}
                 if !is_none(regional_errors[key]) { regional_errors = delete_key(regional_errors, key) }
                 if model["regional"] {
-                    match load_grid(model, REGIONAL_GRID, true, event_date, request, pause) {
+                    match load_grid(model, REGIONAL_GRID, true, event_date, date_offset(event_date, 2), request, pause) {
                         Ok(far) => { regional[key] = far },
                         Err(message) => { regional_errors[key] = message }
                     }
@@ -226,6 +237,7 @@ export fn refresh_selected_from(event_date: String, targets: Map, previous: Map,
     if !refreshed { return map { "errors": errors } }
     let forecast = map {
         "schema": 1, "status": "forecast", "event_date": event_date, "timezone": TIMEZONE,
+        "explore_through": window["through"],
         "fetched_at_utc": started,
         "description": "Fixed-level 2D trajectory screening; no validated dispersion, deposition or exposure estimate",
         "levels": LEVELS, "models": local, "provider_errors": errors, "data_sources": SOURCES
@@ -249,6 +261,10 @@ fn delete_key(values: Map, key: String) -> Map {
     return result
 }
 
-export fn refresh_selected(event_date: String, targets: Map, previous: Map, before_model) -> Map {
-    return refresh_selected_from(event_date, targets, previous, request_json, sleep_ms, before_model)
+export fn refresh_selected_from(event_date: String, targets: Map, previous: Map, request, pause, before_model) -> Map {
+    return refresh_window_from(event_date, map { "start": event_date, "end": date_offset(event_date, 1) }, targets, previous, request, pause, before_model)
+}
+
+export fn refresh_window(event_date: String, window: Map, targets: Map, previous: Map, before_model) -> Map {
+    return refresh_window_from(event_date, window, targets, previous, request_json, sleep_ms, before_model)
 }
