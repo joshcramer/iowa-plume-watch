@@ -1,0 +1,9 @@
+{
+  "schema": 1,
+  "status": "pending",
+  "event_date": "2026-11-25",
+  "timezone": "America/Chicago",
+  "fetched_at_utc": null,
+  "models": {},
+  "message": "Live model grids not yet fetched. Run the GitHub Actions forecast workflow after publishing. Archived graphics are reference-only and not live."
+}

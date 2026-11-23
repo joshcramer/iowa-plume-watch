@@ -1,0 +1,57 @@
+name: Update forecast and publish Pages
+on:
+  push:
+    branches: [main]
+  schedule:
+    # Scheduled every 3 hours, offset to avoid the hour boundary.
+    - cron: '17 */3 * * *'
+  workflow_dispatch:
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+concurrency:
+  group: pages
+  cancel-in-progress: false
+jobs:
+  update-and-publish:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run deterministic tests
+        run: |
+          python -m unittest discover -s tests -v
+          node --test tests/*.test.mjs
+      - name: Download latest GFS / RRFS / ECMWF pressure-level winds
+        run: |
+          python scripts/build_forecast.py || echo 'WARNING: Model request failed. Existing dated snapshot retained.'
+      - name: Detect changed official source pages (unreviewed, not an alert)
+        run: |
+          python scripts/watch_official_sources.py || echo 'WARNING: At least one source unavailable; statuses remain unverified.'
+      - name: Save snapshots to repository
+        run: |
+          git config user.name 'iowa-plume-watch[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add data/forecast.json data/source-watch.json
+          if ! git diff --cached --quiet; then
+            git commit -m 'data: refresh forecast inputs and source-change watch'
+            git push origin HEAD:main
+          fi
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+      - name: Deploy to GitHub Pages
+        id: deploy
+        uses: actions/deploy-pages@v4

@@ -1,0 +1,11 @@
+{
+  "name": "iowa-plume-watch",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Independent wind transport screening; NOT a lead-exposure or deposition model",
+  "scripts": {
+    "test": "node --test tests/*.test.mjs"
+  },
+  "license": "MIT"
+}
