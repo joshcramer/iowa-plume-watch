@@ -82,3 +82,5 @@ OpenStreetMap tiles are donation-funded and best-effort, not an unlimited produc
 ### Forecast path rendering
 
 The forecast trajectory lines are drawn as an HTML SVG overlay above the Leaflet map, using Leaflet solely to project geographic coordinates to screen pixels. This avoids Leaflet Canvas stacking and platform-specific renderer issues; the overlay redraws on map pan, zoom, resizing, and forecast selection. The SVG contains only air-parcel centerlines, **not** a hazardous plume footprint, concentration field, or deposition prediction.
+
+The map's SVG also draws the approximate Cedar Rapids airport–Davenport route, plant marker, airport and destination labels, plus a geographic reference grid. They remain visible even if public OSM raster tiles fail to load. Only the map illustration is resilient; missing tiles do not say anything about actual contamination.

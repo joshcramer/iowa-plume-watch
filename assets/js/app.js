@@ -26,17 +26,9 @@ function makeMap(){
     }
   });
   baseTiles.addTo(map);
-  L.polyline(ROUTE.map(p=>[p.lat,p.lon]),{color:'#041e2d',weight:11,opacity:.94}).addTo(map);
-  L.polyline(ROUTE.map(p=>[p.lat,p.lon]),{color:'#57dcd7',weight:4.5,opacity:.95,dashArray:'7,4'}).bindPopup('<b>Approximate travel geography</b><br>CID → I-380 → I-80 → Davenport; NOT turn-by-turn road geometry').addTo(map);
-  L.circleMarker([PLANT.lat,PLANT.lon],{radius:9,weight:3,color:'#fff4d4',fillColor:'#ffca75',fillOpacity:1})
-    .bindPopup('<b>Iowa Army Ammunition Plant</b><br>Trajectory origin for hypothetical releases.').addTo(map);
-  for(const key of ['airport','davenport','iowacity','cedar']){
-    const p=PLACES[key];
-    L.circleMarker([p.lat,p.lon],{radius:5,color:'#a9f6f0',weight:2,fillColor:'#4ecdc8',fillOpacity:.9})
-      .bindTooltip(p.name,{permanent:key==='davenport',direction:'right',offset:[7,0]}).addTo(map);
-  }
+  // Travel route, site marker and forecast paths are all rendered in the SVG layer.
   state.map=map;
-  state.transportOverlay=createTransportOverlay(map);
+  state.transportOverlay=createTransportOverlay(map,{route:ROUTE,plant:PLANT,places:PLACES});
 }
 function installControls(){
   const levels=el('level-controls');
