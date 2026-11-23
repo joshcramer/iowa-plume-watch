@@ -32,14 +32,17 @@ jobs:
           python -m unittest discover -s tests -v
           node --test tests/*.test.mjs
       - name: Download latest GFS / RRFS / ECMWF pressure-level winds
+        if: github.event_name != 'push'
         run: |
           python scripts/build_forecast.py || echo 'WARNING: Model request failed. Existing dated snapshot retained.'
       - name: Smoke-test the actual downloaded forecast trajectories
         run: node --test tests/live-forecast.test.mjs
       - name: Detect changed official source pages (unreviewed, not an alert)
+        if: github.event_name != 'push'
         run: |
           python scripts/watch_official_sources.py || echo 'WARNING: At least one source unavailable; statuses remain unverified.'
       - name: Save snapshots to the latest main safely
+        if: github.event_name != 'push'
         shell: bash
         run: |
           set -euo pipefail
