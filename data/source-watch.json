@@ -1,7 +1,30 @@
 {
-  "checked_at_utc": null,
-  "disclaimer": "Official source page-change monitoring has not run yet. Changes require manual review before public-health interpretations.",
-  "sources": {},
+  "checked_at_utc": "2026-11-23T16:18:08+00:00",
+  "disclaimer": "Source-page change detection only. No editorial verification or public-health conclusions.",
+  "sources": {
+    "iowa-public-radio-2026-11-22": {
+      "url": "https://www.iowapublicradio.org/ipr-news/2026-11-22/southeast-iowa-lead-azide-explosion-wednesday-army",
+      "sha256": "b055dfba9953d6e93f1109b2a92a8fb617225bbbab7f7f4307a9c8c1b4a41c7a",
+      "last_changed_at_utc": null
+    },
+    "epa": {
+      "url": "https://response.epa.gov/site/site_profile.aspx?site_id=17211",
+      "sha256": "b2622142fb1665aab6098567cdf37d944d1658ab560082830ad55965f158d3e4",
+      "last_changed_at_utc": null
+    },
+    "iowa-hhs": {
+      "url": "https://hhs.iowa.gov/health-prevention/environmental-health/lead-exposure-surveillance",
+      "sha256": "3f7d15f6659ed25a67615a9a5f7dbeb9594f8fedb6172fc7a02c330ea48ab6cf",
+      "last_changed_at_utc": null
+    },
+    "iowa-hsem": {
+      "url": "https://homelandsecurity.iowa.gov/iowa-army-munitions-disposition-resources",
+      "sha256": "883f5f56b1f97c3992c9a4baf178189326566ef60944773786842ad87a0ae147",
+      "last_changed_at_utc": null
+    }
+  },
   "changed_on_this_check": [],
-  "fetch_errors": {}
+  "fetch_errors": {
+    "army": "HTTP Error 403: Forbidden"
+  }
 }
