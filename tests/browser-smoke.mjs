@@ -175,6 +175,11 @@ try {
     assert.ok(mobileLayout.scroll<=mobileLayout.width,'Page should not scroll sideways');
     assert.equal(await mobile.locator('#altitude-compare').count(),0);
     assert.equal(await mobile.locator('.reference-route, #route-distance, img[src*="nov23-"]').count(),0);
+    const labelFits=await mobile.locator('.map-reference-label').evaluate(label=>{
+      const box=label.getBoundingClientRect(), map=label.ownerSVGElement.getBoundingClientRect();
+      return box.left>=map.left && box.right<=map.right;
+    });
+    assert.ok(labelFits,'The site label should stay inside the mobile map');
     await mobile.setViewportSize({width:320,height:844});
     const narrowFits=await mobile.evaluate(()=>{
       const shell=document.querySelector('.header-content').getBoundingClientRect();

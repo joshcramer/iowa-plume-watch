@@ -129,7 +129,9 @@ export function createTransportOverlay(map,plant){
       const q=map.latLngToContainerPoint([p.lat,p.lon]);
       if(!q||!finite(q.x)||!finite(q.y))return;
       layer.appendChild(svg('circle',{class:cls,cx:q.x,cy:q.y,r:8,fill,stroke:'#071e30','stroke-width':3}));
-      const t=svg('text',{class:'map-reference-label',x:q.x+dx,y:q.y+dy,'paint-order':'stroke',stroke:'#f4f7f5','stroke-width':3,fill:'#14303e','font-size':12,'font-weight':750});
+      // Lay the label inward when the site is close to the map's right edge.
+      const flip=q.x>size.x-125;
+      const t=svg('text',{class:'map-reference-label',x:q.x+(flip?-dx:dx),y:q.y+dy,'text-anchor':flip?'end':'start','paint-order':'stroke',stroke:'#f4f7f5','stroke-width':3,fill:'#14303e','font-size':12,'font-weight':750});
       t.textContent=label;
       layer.appendChild(t);
     }

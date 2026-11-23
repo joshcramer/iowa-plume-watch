@@ -1,5 +1,5 @@
 import {PLANT,LEVELS,integrate,sourceWind,toCompass,validateSnapshot} from './trajectory.js?v=ntnt-5';
-import {createTransportOverlay,clockAt} from './overlay.js?v=ntnt-5';
+import {createTransportOverlay,clockAt} from './overlay.js?v=ntnt-6';
 import {inspectNearestTrack,formatElapsed} from './inspect.js';
 
 const el=id=>document.getElementById(id);
