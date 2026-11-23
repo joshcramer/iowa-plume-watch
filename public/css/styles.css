@@ -101,3 +101,24 @@
 @media(max-width:650px){.compare-header{align-items:start;flex-direction:column}
   .mini-map-grid{gap:12px}
   .map-hover-hint{font-size:10px;padding:7px 14px}}
+
+/* Keep the map, data age and limitations in the first view. */
+#forecast{padding-top:23px}
+.forecast-intro{display:flex;align-items:end;justify-content:space-between;flex-wrap:wrap;gap:8px 20px;margin-bottom:10px}
+.forecast-intro h1{font:650 clamp(1.85rem,4vw,3.25rem)/1.05 system-ui,sans-serif;letter-spacing:-.055em;margin:5px 0 0}
+.snapshot-line{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin:0;color:#a8c2cd;font-size:.8rem}
+.snapshot-line strong{color:var(--ink);font-weight:650}
+.forecast-caution{font-size:.83rem;line-height:1.45;color:#ead5ae;background:#261f19;border:1px solid #543f2b;border-radius:9px;padding:9px 13px;margin:0 0 12px}
+.forecast-caution a{text-decoration:underline;text-underline-offset:3px}
+.forecast-layout{grid-template-columns:minmax(0,1fr) minmax(16rem,.34fr)}
+.forecast-layout>*{min-width:0}
+.forecast-layout + .metrics{margin-top:14px}
+.map-footer i{background:var(--cyan)}.map-footer>span:first-child i{background:var(--yellow)}.map-footer>span:last-child i{background:#cd9dfa}
+.small-badge[data-kind="archive"]{color:#ffdb9d;border-color:#80643b}
+.skip-link{position:absolute;top:.5rem;left:.5rem;z-index:1200;padding:.5rem .75rem;background:var(--bg);transform:translateY(-150%)}.skip-link:focus{transform:none}
+input:focus-visible,select:focus-visible,button:focus-visible,a:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+.readout-warning{color:#ffcc86}
+.wind-row .color-marker{margin-right:8px}
+@media(max-width:950px){.forecast-layout{grid-template-columns:minmax(0,1fr)}.header-content{min-height:55px}}
+@media(max-width:650px){#forecast{padding-top:17px}#map{height:clamp(290px,44svh,390px)}.snapshot-line{font-size:.73rem}.forecast-caution{font-size:.78rem}.timeline-play,.map-view-toggle,#model-select,#release-select,#horizon-select{min-height:44px}}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}

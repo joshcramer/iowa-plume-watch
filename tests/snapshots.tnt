@@ -1,0 +1,35 @@
+import { get_env } from "std/env"
+import { exists } from "std/fs"
+import { parse_json } from "std/json"
+import { parse_iso } from "std/time"
+import { starts_with } from "std/string"
+import { initialize_database } from "lib/database"
+import { seed_data, persisted_payload, seed_file, store_weather, record_attempt, last_attempt } from "lib/snapshots"
+import { is_forecast_window } from "lib/dispatch"
+import { visible_text } from "lib/source_watch"
+
+let path = unwrap(get_env("APP_DATABASE_PATH"))
+assert(starts_with(path, "/tmp/") && !exists(path))
+initialize_database()
+seed_data()
+let original = unwrap(persisted_payload("forecast"))
+assert(original == seed_file("forecast"))
+let mut forecast = unwrap(parse_json(original))
+let mut extended = unwrap(parse_json(unwrap(persisted_payload("extended-tracks"))))
+assert(store_weather(map { "forecast": forecast, "extended": extended }) == 0)
+let stamp = "2026-11-25T18:00:00Z"
+forecast["fetched_at_utc"] = stamp
+extended["source_snapshot_utc"] = stamp
+assert(store_weather(map { "forecast": forecast, "extended": extended }) == 1)
+initialize_database()
+seed_data()
+assert(unwrap(parse_json(unwrap(persisted_payload("forecast"))))["fetched_at_utc"] == stamp)
+assert(unwrap(parse_json(unwrap(persisted_payload("extended-tracks"))))["source_snapshot_utc"] == stamp)
+assert(is_err(persisted_payload("unknown")))
+assert(last_attempt("forecast") == 0)
+record_attempt("forecast")
+assert(last_attempt("forecast") > 0)
+assert(is_forecast_window(unwrap(parse_iso("2026-11-28T05:59:59Z"))))
+assert(!is_forecast_window(unwrap(parse_iso("2026-11-28T06:00:00Z"))))
+assert(visible_text("<body><script>ignore()</script><p> A   page </p><!-- secret --></body>") == "A page")
+print("Snapshot publication, restart persistence, scheduling and source normalization checks passed")

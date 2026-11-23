@@ -1,0 +1,38 @@
+import { load_env } from "std/env"
+import { initialize_database } from "lib/database"
+import { seed_data } from "lib/snapshots"
+import { is_production } from "lib/config"
+
+// Development convenience only: non-secret settings from .env. Production
+// configuration comes from the container environment and secret renderer.
+if !is_production() { load_env(".env") }
+
+enable_csp(map {
+    "default-src": "'self'",
+    "script-src": "'self'",
+    "style-src": "'self'",
+    "img-src": "'self' data: https://tile.openstreetmap.org",
+    "font-src": "'self'",
+    "connect-src": "'self'",
+    "object-src": "'none'",
+    "frame-ancestors": "'none'",
+    "base-uri": "'self'",
+    "form-action": "'self'"
+})
+
+// Storage is independent of opt-in authentication; failure prevents listening.
+initialize_database()
+seed_data()
+
+import "lib/jobs_startup"
+// Optional recipe startup imports go here.
+
+routes("routes")
+// Serve only known content types from the public tree. Anything else under
+// /assets (.sh, .tnt, .exe, .html, dotfiles, extensionless files) answers 404,
+// so a stray or client-supplied file can never be served or executed.
+serve_static("/assets", "./public", map {
+    "extensions": ["css", "js", "mjs", "map", "png", "jpg", "jpeg", "gif", "webp", "avif",
+                   "svg", "ico", "woff", "woff2", "ttf", "pdf", "txt", "xml", "json", "webmanifest"]
+})
+listen(8080)

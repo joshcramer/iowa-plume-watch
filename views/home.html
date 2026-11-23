@@ -1,0 +1,92 @@
+    <section class="shell section" id="forecast">
+      <div class="forecast-intro">
+        <div><div class="kicker">MIDDLETOWN, IOWA · NOVEMBER 2026</div><h1>Wind transport explorer</h1></div>
+        <p class="snapshot-line"><span id="forecast-badge" class="small-badge" role="status">Loading forecast</span> <span>Fetched <strong id="updated-at">—</strong></span></p>
+      </div>
+      <div class="forecast-caution" role="note"><strong>Wind paths, not an exposure map.</strong> A line cannot establish whether a route or community is safe. <a href="#official">See official updates</a>.</div>
+      <noscript><p class="forecast-caution">The interactive map needs JavaScript. Official notices and static reference maps are available below.</p></noscript>
+      <div class="forecast-layout">
+        <div class="map-panel">
+          <div class="map-heading"><div class="map-heading-title">TRANSPORT MAP <span class="map-type">/ Wind-driven paths only</span></div><div class="map-time" id="map-label">Nov 25 · Hypothetical noon release</div></div>
+          <div id="map" role="img" aria-label="Map of Iowa Army Ammunition Plant, Cedar Rapids airport, Davenport and forecast wind trajectories"></div>
+          <div class="map-hover-hint">Move your pointer along a colored path to inspect altitude, elapsed time and distance. Tap on mobile.</div>
+          <div class="trajectory-timeline" aria-label="Hypothetical release transport timeline">
+            <div class="timeline-top">
+              <div>
+                <div class="timeline-kicker">TIME AFTER HYPOTHETICAL RELEASE</div>
+                <output id="timeline-clock" for="timeline-slider" class="timeline-clock" aria-live="off">+4h · Nov 25, 4:00 PM CST</output>
+              </div>
+              <button type="button" class="timeline-play" id="timeline-play" aria-label="Play time progression">▶ Play</button>
+            </div>
+            <input type="range" id="timeline-slider" class="timeline-slider" min="0" max="8" step="0.25" value="4" aria-label="Elapsed time since hypothetical detonation">
+            <div id="timeline-ticks" class="timeline-ticks" aria-hidden="true"><span>+0h</span><span>+2h</span><span>+4h</span><span>+6h</span><span>+8h</span></div>
+            <div class="timeline-tools"><label class="checkpoint-toggle"><input id="time-dots-toggle" type="checkbox"> Show optional time checkpoints</label>
+            <button type="button" class="map-view-toggle" id="map-view-toggle">Show full tracks</button><span class="timeline-key"><i class="key-line"></i> Completed&nbsp; <i class="key-line faded"></i> Later</span></div>
+            <p class="timeline-note">Move the slider to track the <b>colored position markers</b> at a shared elapsed time. The faint lines show later wind transport. Optional dots mark 4-hour intervals (6-hour intervals on longer paths). These are air-parcel paths, not a plume footprint or lead-deposition estimate.</p>
+          </div>
+          <div id="overlay-status" class="map-overlay-status" role="status" aria-live="polite">Loading forecast wind paths…</div>
+          <div class="map-footer"><span><i class="legend-dot" ></i>Detonation site</span><span><i class="legend-line" ></i>Travel route (approx.)</span><span><i class="legend-line" ></i>Forecast air-parcel paths by altitude</span></div>
+          <div id="map-fallback" class="map-fallback" hidden>Base map could not load. Geographical reference and prior static visuals are available below.</div>
+        </div>
+        <aside class="control-panel"><div class="control-title">SCENARIO CONTROLS</div><label class="field-label" for="model-select">Forecast model</label><select id="model-select"><option value="">No model data yet</option></select>
+          <label class="field-label" for="release-select">Hypothetical release time <span>CST · Nov 25</span></label><select id="release-select"><option value="9">9:00 a.m.</option><option value="12" selected>Noon</option><option value="15">3:00 p.m.</option></select>
+          <label class="field-label" for="horizon-select">Forecast horizon <span>longer = less certain</span></label>
+          <select id="horizon-select"><option value="8" selected>8 hours · local detail</option><option value="24">24 hours · regional screening</option><option value="48">48 hours · regional screening</option></select>
+          <div id="long-range-warning" class="long-range-warning" role="status" hidden></div>
+          <div class="field-label">Wind levels <span>select to display</span></div><div id="level-controls" class="levels"></div>
+          <div class="control-divider"></div><div class="control-title">MODEL READOUT</div><div id="model-readout" class="readout">Awaiting the latest available forecast.</div>
+          <div class="readout-foot">Atmospheric pressure levels are elevations above <em>sea level</em>, not the ground. Heights vary with weather.</div>
+        </aside>
+      </div>
+      <div class="metrics" aria-label="Forecast details"><div class="metric"><div class="metric-label">Scenario date</div><div class="metric-value" id="event-date">NOV 25</div><div class="metric-foot">Hypothetical release times</div></div><div class="metric"><div class="metric-label">Forecast data</div><div class="metric-foot" id="updated-foot">Awaiting data</div></div><div class="metric"><div class="metric-label">Models available</div><div class="metric-value" id="model-count">—</div><div class="metric-foot">GFS · RRFS · ECMWF</div></div><div class="metric"><div class="metric-label">Selected path &amp; route</div><div class="metric-value smaller" id="route-distance">—</div><div class="metric-foot">Geometric proximity, not exposure</div></div></div>
+      <div class="altitude-compare" id="altitude-compare">
+        <div class="compare-header">
+          <div>
+            <div class="kicker">ALTITUDE COMPARISON · SAME GEOGRAPHIC SCALE</div>
+            <h3>Four heights. Four possible paths.</h3>
+            <p>Compare the forecast wind tracks at the same time and geographic scale. Select a panel to isolate that altitude on the large map.</p>
+          </div>
+          <button type="button" id="mini-map-show-all" class="mini-map-reset">Show all four on main map</button>
+        </div>
+        <div class="mini-map-grid" id="mini-map-grid" aria-label="Four synchronized altitude comparison maps"></div>
+        <p class="compare-disclaimer">Schematic geographic reference with no additional map-tile downloads. Each line is a fixed-altitude air-parcel trajectory, not a hazardous plume or fallout extent. Long-range paths may be incomplete.</p>
+      </div>
+      <div class="model-error" id="error-message" hidden></div>
+      <div class="microcopy">Trajectory calculations use spatially and temporally interpolated wind vectors at a fixed level (15-minute RK2 integration). They omit plume rise, vertical motion, turbulence, settling, deposition, chemistry, precipitation scavenging and exposure.</div>
+    </section>
+    <section class="shell section winds-section" id="winds"><div class="section-header"><div><div class="kicker">02 / VERTICAL STRUCTURE</div><h2>Winds change with altitude.</h2><p>Compare modeled wind directions and speeds at the release point. “From” follows meteorological convention; the trajectory goes the other way.</p></div></div>
+      <div class="winds-card"><div class="winds-head"><span>WIND LEVEL</span><span>FORECAST WIND (FROM)</span><span>PARCEL MOVEMENT (TOWARD)</span></div><div id="wind-rows" class="wind-rows"><div class="empty-winds">Forecast winds will appear after the first successful scheduled update.</div></div></div>
+      <p class="section-note">Pressure heights are approximations. The 925 hPa and 850 hPa levels are typically around 0.8 km and 1.5 km above sea level, respectively. For an actual explosion, material could rise or fall between these layers; this site does not compute that behavior.</p>
+    </section>
+    <section class="shell section archive-section"><div class="section-header"><div><div class="kicker">03 / REFERENCE GRAPHICS</div><h2>November 23 reference analysis</h2><p>These graphics came from an earlier static screening exercise. They do not automatically update and are not replacements for the live trajectories above.</p></div><div class="small-badge archive">ARCHIVE · NON-LIVE</div></div><div class="archive-grid"><figure><img loading="lazy" src="/assets/images/nov23-transport-screening.png" alt="Archived static map of hypothetical wind paths and Cedar Rapids–Davenport travel route"><figcaption>Earlier geographic screening of the Nov. 25 scenario. Shaded sector represents assumptions, not predicted lead deposition.</figcaption></figure><figure><img loading="lazy" src="/assets/images/nov23-wind-sensitivity.png" alt="Archived model sensitivity chart for different wind speed and height assumptions"><figcaption>Earlier illustrative sensitivity comparison. Assumed higher-altitude winds must not be interpreted as forecast upper-air measurements.</figcaption></figure></div></section>
+    <section class="shell section official-section" id="official"><div class="section-header"><div><div class="kicker">04 / OFFICIAL STATUS</div><h2>Official updates</h2></div></div><div class="status-grid"><article class="status-card"><div class="status-overline">LATEST MANUALLY VERIFIED ARMY ANNOUNCEMENT</div><h3 id="official-heading">Wednesday, November 25</h3><p id="official-text">The Army announced a new planned date of November 25. No exact detonation time had been confirmed.</p><a id="official-link" href="https://www.army.mil/asc#org-iowa-army-ammunition-plant" target="_blank" rel="noopener noreferrer">Read the Army announcement ↗</a><div class="status-small" id="official-reviewed">Verified against the Army's November 22 statement</div></article><article class="status-card secondary"><div class="status-overline">AUTOMATED SOURCE CHANGE WATCH</div><h3 id="sources-checked">Not yet checked</h3><p id="source-watch-text">The site periodically checks selected official pages for changed text. A changed page is not necessarily a new safety finding and requires human review.</p><a href="#sources">Browse the primary sources ↗</a><div class="status-small">Page changes are unreviewed. No automated all-clear claims.</div></article></div></section>
+    <section class="shell section methodology" id="method"><div class="section-header"><div><div class="kicker">05 / HOW IT WORKS</div><h2>Built to be questioned.</h2><p>Source code, equations, data lineage and limitations are public because transparency matters more than a convincing-looking plume.</p></div></div><div class="method-grid"><article><div class="method-index">01</div><h3>Collect forecast grids</h3><p>A scheduled job requests multiple locations from Open-Meteo's NOAA GFS / RRFS and ECMWF APIs. Source fields include wind speed and meteorological direction at 10 m, 80 m, 925 hPa and 850 hPa. Each provider is reported separately; failed providers are omitted rather than fabricated.</p></article><article><div class="method-index">02</div><h3>Interpolate weather</h3><p>The site converts wind speed/direction to east/north velocity, then interpolates those vectors between surrounding geographic sample points and adjacent forecast hours. API point forecasts are samples, not a native, perfectly resolved model grid.</p></article><article><div class="method-index">03</div><h3>Integrate parcel paths</h3><p>An idealized parcel starts at the plant at the selected release time and stays on one nominal wind level. Midpoint (second-order Runge–Kutta / RK2) integration advances it in 15-minute increments, until eight hours or until winds are unavailable.</p></article><article><div class="method-index">04</div><h3>Compare with travel geography</h3><p>Approximate waypoints mark the normal CID Airport → Davenport route via I-380 and I-80. The closest approach is a geometric distance between a predicted parcel <em>centerline</em> and that approximate route. It is not a plume width or an estimate of safety.</p></article></div>
+      <div class="equations"><div><div class="equation-label">WIND COMPONENTS</div><div class="equation">u = −S sin(θ) &nbsp;&nbsp;·&nbsp;&nbsp; v = −S cos(θ)</div><p>Where θ is the direction the wind comes <em>from</em>, measured clockwise from north, and S is its speed.</p></div><div><div class="equation-label">TRAJECTORY INTEGRATION</div><div class="equation">x<sub>n+1</sub> = x<sub>n</sub> + Δt × V(x<sub>mid</sub>, t<sub>mid</sub>)</div><p>A 15-minute midpoint step, using winds sampled at the projected midpoint.</p></div></div>
+      <div class="limitations"><h3>What this model cannot tell you</h3><p>It does not model explosion physics, release mass, particle-size distributions, height of the actual cloud, dry/wet deposition, resuspension, atmospheric turbulence, vertical mixing or dose. Multiple trajectories are <b>not</b> a probability cone. It is not NOAA HYSPLIT or an EPA regulatory dispersion model, and it has not been calibrated against observations.</p><p><strong>Crucially:</strong> no trajectory near a route does not mean contamination; no trajectory near a route does not guarantee absence of contamination. Look to official plume/deposition modeling and measured air/soil results for that distinction.</p></div>
+    </section>
+    <section class="shell section sources" id="sources"><div class="section-header"><div><div class="kicker">06 / ATTRIBUTION & PRIMARY SOURCES</div><h2>Every input has an origin.</h2><p>Forecast meteorology, government announcements, and environmental measurements are different kinds of evidence. This site does not substitute one for another.</p></div></div><div class="source-list">
+      <a href="https://open-meteo.com/en/docs/gfs-api" target="_blank" rel="noopener noreferrer"><span class="source-number">01</span><span><b>NOAA GFS & RRFS · via Open-Meteo</b><small>Hourly modeled wind forecasts at surface and pressure levels; not lead measurements.</small></span><span class="source-arrow">↗</span></a>
+      <a href="https://open-meteo.com/en/docs/ecmwf-api" target="_blank" rel="noopener noreferrer"><span class="source-number">02</span><span><b>ECMWF IFS open data · via Open-Meteo</b><small>Independent weather-model comparison when available; not a source-term model.</small></span><span class="source-arrow">↗</span></a>
+      <a href="https://www.army.mil/asc#org-iowa-army-ammunition-plant" target="_blank" rel="noopener noreferrer"><span class="source-number">03</span><span><b>U.S. Army · installation advisories</b><small>Primary location for official schedule, plume projection maps and instructions.</small></span><span class="source-arrow">↗</span></a>
+      <a href="https://response.epa.gov/site/site_profile.aspx?site_id=17211" target="_blank" rel="noopener noreferrer"><span class="source-number">04</span><span><b>EPA Region 7 · response site</b><small>Agency incident response, sampling updates and possible monitoring findings.</small></span><span class="source-arrow">↗</span></a>
+      <a href="https://hhs.iowa.gov/health-prevention/environmental-health/lead-exposure-surveillance" target="_blank" rel="noopener noreferrer"><span class="source-number">05</span><span><b>Iowa Health & Human Services</b><small>State public-health guidance on potential lead exposure and protective measures.</small></span><span class="source-arrow">↗</span></a>
+      <a href="https://homelandsecurity.iowa.gov/iowa-army-munitions-disposition-resources" target="_blank" rel="noopener noreferrer"><span class="source-number">06</span><span><b>Iowa Homeland Security & Emergency Management</b><small>State emergency-management updates and links to other agencies.</small></span><span class="source-arrow">↗</span></a>
+      <a href="https://www.ready.noaa.gov/HYSPLIT_traj.php" target="_blank" rel="noopener noreferrer"><span class="source-number">07</span><span><b>NOAA HYSPLIT documentation</b><small>Reference for a more sophisticated atmospheric-trajectory model; HYSPLIT is not run by this site.</small></span><span class="source-arrow">↗</span></a>
+    </div></section>
+    <section class="shell section code-section" id="code"><div class="code-box"><div><div class="kicker">07 / OPEN SOURCE</div><h2>Audit the entire model.</h2><p>The data collector, trajectory math, map interface, scheduled NTNT jobs, official-source watcher and tests are in the public repository. No proprietary model, magic weights or hidden “AI safety score.”</p><div class="code-actions"><a class="action primary" href="https://github.com/joshcramer/iowa-plume-watch" target="_blank" rel="noopener noreferrer">View the repository ↗</a><a class="action" href="https://github.com/joshcramer/iowa-plume-watch/archive/refs/heads/main.zip">Download source ZIP ↓</a></div></div><div class="file-tree"><div class="tree-header"><span class="tree-lights">● ● ●</span> PROJECT CONTENTS</div><pre>iowa-plume-watch/
+├── index.html
+├── assets/
+│   ├── css/style.css
+│   ├── js/app.js
+│   ├── js/trajectory.js
+│   └── images/
+├── scripts/
+│   ├── build_forecast.py
+│   └── watch_official_sources.py
+├── tests/
+├── data/
+│   ├── forecast.json
+│   ├── official-status.json
+│   └── source-watch.json
+└── .github/workflows/
+    └── update-and-deploy.yml</pre></div></div></section>

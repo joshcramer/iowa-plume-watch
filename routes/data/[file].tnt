@@ -1,0 +1,20 @@
+import { response, not_found } from "std/http/server"
+import { persisted_payload, seed_file } from "lib/snapshots"
+
+fn reply(code: Int, body: String) {
+    return response(code, map {
+        "Content-Type": "application/json; charset=utf-8",
+        "Cache-Control": "no-store"
+    }, body)
+}
+
+fn get(req) {
+    let file = req.params["file"]
+    if file == "official-status.json" { return reply(200, seed_file("official-status")) }
+    let name = if file == "forecast.json" { "forecast" }
+        else if file == "extended-tracks.json" { "extended-tracks" }
+        else if file == "source-watch.json" { "source-watch" }
+        else { return not_found() }
+    let body = persisted_payload(name) otherwise { return reply(503, "{}") }
+    return reply(200, body)
+}

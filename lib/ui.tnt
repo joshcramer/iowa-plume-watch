@@ -1,0 +1,8 @@
+// The partial escapes message text; only the rendered fragment is trusted HTML.
+fn flash_html(kind: String, message: String) -> String {
+    if message == "" {
+        return ""
+    }
+    let safe_kind = if kind == "success" { "success" } else { "error" }
+    return template("views/partials/flash.html", map { "kind": safe_kind, "message": message })
+}

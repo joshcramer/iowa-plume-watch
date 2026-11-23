@@ -1,0 +1,17 @@
+import { configure_queue } from "std/jobs"
+import { cwd, get_env } from "std/env"
+import { is_absolute } from "std/path"
+
+// One queue configuration shared by the web process and worker.tnt.
+// Single-host default: a SQLite queue file on the project data volume.
+fn jobs_store() -> String {
+    let configured = get_env("APP_JOBS_DATABASE_PATH") ?? "data/jobs.db"
+    assert(configured != "" && configured != ":memory:")
+    let path = if is_absolute(configured) { configured } else { cwd() + "/" + configured }
+    return "sqlite:" + path
+}
+
+fn configure_jobs() -> Bool {
+    configure_queue(map { "store": jobs_store() })
+    return true
+}

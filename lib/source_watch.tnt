@@ -1,0 +1,58 @@
+import { fetch } from "std/http"
+import { sha256 } from "std/crypto"
+import { replace_pattern, trim } from "std/string"
+import { now, to_iso } from "std/time"
+import { push, keys } from "std/collections"
+
+fn watched_urls() -> Map {
+    return map {
+        "army": "https://www.army.mil/asc",
+        "iowa-public-radio-2026-11-22": "https://www.iowapublicradio.org/ipr-news/2026-11-22/southeast-iowa-lead-azide-explosion-wednesday-army",
+        "epa": "https://response.epa.gov/site/site_profile.aspx?site_id=17211",
+        "iowa-hhs": "https://hhs.iowa.gov/health-prevention/environmental-health/lead-exposure-surveillance",
+        "iowa-hsem": "https://homelandsecurity.iowa.gov/iowa-army-munitions-disposition-resources"
+    }
+}
+
+// Fingerprint normalized page text. This is not an advisory classifier.
+fn visible_text(page: String) -> String {
+    let no_noise = replace_pattern(page, "(?is)<!--.*?-->|<script\\b[^>]*>.*?</script\\s*>|<style\\b[^>]*>.*?</style\\s*>|<noscript\\b[^>]*>.*?</noscript\\s*>", " ")
+    return trim(replace_pattern(replace_pattern(no_noise, "(?s)<[^>]*>", " "), "\\s+", " "))
+}
+
+fn source_read(url: String) -> Result<String, String> {
+    let reply = fetch(url, map { "timeout": 12, "max_redirects": 3, "headers": map { "User-Agent": "IowaPlumeWatch/2.0 (public source change monitor)" } }) otherwise { return Err("Fetch unavailable") }
+    if reply["status"] != 200 { return Err("Unexpected HTTP status") }
+    let body = reply["body"]
+    if len(body) > 4000000 { return Err("Page too large") }
+    let text = visible_text(body)
+    if len(text) < 40 { return Err("No page text") }
+    return Ok(sha256(text))
+}
+
+fn check_sources(previous: Map) -> Map {
+    let urls = watched_urls()
+    let old = previous["sources"] ?? map {}
+    let mut results = map {}
+    let mut errors = map {}
+    let mut changed = []
+    let observed = to_iso(now())
+    for key in keys(urls) {
+        let prior = old[key] ?? map {}
+        let url = urls[key]
+        let current = source_read(url)
+        if is_err(current) {
+            errors[key] = "Could not verify this page"
+            if len(prior) > 0 { results[key] = prior }
+        } else {
+            let hash = unwrap(current)
+            let mut last_change = prior["last_changed_at_utc"]
+            if (prior["fingerprint_version"] ?? "") == "ntnt-v1" && prior["sha256"] != hash {
+                changed = push(changed, key)
+                last_change = observed
+            }
+            results[key] = map { "url": url, "sha256": hash, "fingerprint_version": "ntnt-v1", "last_changed_at_utc": last_change }
+        }
+    }
+    return map { "checked_at_utc": observed, "disclaimer": "Unreviewed page-text checks, not agency findings or alerts.", "sources": results, "changed_on_this_check": changed, "fetch_errors": errors }
+}

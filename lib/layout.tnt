@@ -1,0 +1,9 @@
+// One page wrapper; native template() already caches parsed templates.
+fn render_page(options: Map) -> String {
+    return template("views/layout.html", map {
+        "title": options["title"] ?? "Iowa Plume Watch",
+        "description": options["description"] ?? "",
+        "body_class": options["body_class"] ?? "",
+        "content": options["content"] ?? ""
+    })
+}

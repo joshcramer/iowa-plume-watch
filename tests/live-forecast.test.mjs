@@ -1,11 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import {integrate,sourceWind,validateSnapshot} from '../assets/js/trajectory.js';
+import {integrate,sourceWind,validateSnapshot} from '../public/js/trajectory.js';
 
 // Check against published numerical weather data, not solely synthetic fixtures.
 test('published forecast generates visible trajectories from the plant',()=>{
-  const snapshot=JSON.parse(fs.readFileSync(new URL('../data/forecast.json',import.meta.url),'utf8'));
+  const snapshot=JSON.parse(fs.readFileSync(new URL('../seed/forecast.json',import.meta.url),'utf8'));
   if(snapshot.status!=='forecast')return; // fresh cloned repo can contain the documented pending state.
   validateSnapshot(snapshot);
   let plotted=0;

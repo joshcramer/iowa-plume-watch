@@ -1,0 +1,6 @@
+import { configure_jobs } from "lib/jobs_config"
+
+// Web startup: configure the shared queue and register job definitions so
+// startup dispatchers can enqueue by name. jobs() resolves from THIS file.
+configure_jobs()
+jobs("../jobs/")

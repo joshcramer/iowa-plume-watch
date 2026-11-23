@@ -1,44 +1,42 @@
-name: Browser map overlay smoke test
+name: NTNT and map checks
 on:
+  pull_request:
   push:
-    paths:
-      - 'assets/**'
-      - 'index.html'
-      - 'tests/browser-smoke.mjs'
-      - '.github/workflows/browser-smoke.yml'
+    branches: [ntnt-rewrite, main]
   workflow_dispatch:
 permissions:
   contents: read
 jobs:
-  map-browser:
+  checks:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Install browser automation
+      - name: Build release image
+        run: docker build --build-arg APP_REVISION="$GITHUB_SHA" -t plume-check .
+      - name: Run NTNT and map regressions
         run: |
-          npm install --no-save playwright
-          npx playwright install chromium
-      - name: Start static website
+          docker run --rm --network none --entrypoint ntnt plume-check lint server.tnt
+          docker run --rm --network none --entrypoint ntnt plume-check validate .
+          docker run --rm --network none --read-only --tmpfs /tmp:rw,uid=10001,gid=10001,mode=1770 \
+            -v "$PWD/tests:/app/tests:ro" -e APP_DATABASE_PATH=/tmp/snapshots.db --entrypoint ntnt plume-check run tests/snapshots.tnt
+          docker run --rm --network none -v "$PWD/tests:/app/tests:ro" --entrypoint ntnt plume-check run tests/forecast-feed.tnt
+          node --test tests/*.test.mjs
+      - name: Start cold image and test the interactive map
         run: |
-          python3 -m http.server 8000 --bind 127.0.0.1 >/tmp/website.log 2>&1 &
+          docker run -d --name plume-ci --read-only --cap-drop ALL --security-opt no-new-privileges \
+            --tmpfs /tmp:rw,noexec,nosuid,size=16m,uid=10001,gid=10001,mode=1770 \
+            -v plume-ci-data:/app/data -p 127.0.0.1:8080:8080 plume-check
           for attempt in $(seq 1 20); do
-            if curl -fsS http://127.0.0.1:8000/data/forecast.json >/dev/null; then exit 0; fi
+            if curl -fsS http://127.0.0.1:8080/ready; then break; fi
             sleep 1
           done
-          cat /tmp/website.log
-          exit 1
-      - name: Verify actual browser overlay, map alignment, and controls
-        run: node tests/browser-smoke.mjs
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: browser-map-screenshots
-          path: |
-            browser-map-*.png
-            browser-mini-maps.png
-            browser-hover-inspect.png
-            browser-mobile-minis.png
-          if-no-files-found: ignore
+          curl -fsS http://127.0.0.1:8080/data/forecast.json >/dev/null
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+          node tests/browser-smoke.mjs
+      - name: Print logs if a check fails
+        if: failure()
+        run: docker logs plume-ci

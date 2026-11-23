@@ -1,0 +1,186 @@
+// Fixed-level screening only. Sample vector components, not compass angles.
+import { sin, cos, radians, is_finite } from "std/math"
+import { format_timestamp, parse_iso } from "std/time"
+import { keys, push } from "std/collections"
+
+let SITE = [40.825518, -91.266502]
+let RELEASES = [9, 12, 15]
+let LIMIT = 48
+
+fn bracket(axis: Array, x: Float) {
+    for i in 0..(len(axis) - 1) {
+        let low = unwrap(float(axis[i]))
+        let high = unwrap(float(axis[i + 1]))
+        if low <= x && x <= high { return [i, (x - low) / (high - low)] }
+    }
+    return None
+}
+
+fn wind_vector(speed, direction) {
+    if is_none(speed) || is_none(direction) { return None }
+    let kmh = unwrap(float(speed))
+    let angle = radians(unwrap(float(direction)))
+    return [-kmh * sin(angle), -kmh * cos(angle)]
+}
+
+fn grid_times(locations: Array) -> Map {
+    let mut indices = map {}
+    if len(locations) == 0 { return indices }
+    let times = locations[0]["hourly"]["time"]
+    for i in 0..len(times) { indices[times[i]] = i }
+    return indices
+}
+
+fn hourly_vectors(locations: Array, index: Int, level: String) -> Array {
+    let mut samples = []
+    let speed = "wind_speed_" + level
+    let direction = "wind_direction_" + level
+    for loc in locations {
+        let hourly = loc["hourly"]
+        let speeds = hourly[speed]
+        let directions = hourly[direction]
+        let a = wind_vector(speeds[index], directions[index])
+        let b = wind_vector(speeds[index + 1], directions[index + 1])
+        let corner = if is_none(a) || is_none(b) { None } else { [a[0], a[1], b[0], b[1]] }
+        samples = samples + [corner]
+    }
+    return samples
+}
+
+fn hour_slice(axes: Map, locations: Array, times: Map, level: String, clock: String, next_clock: String) {
+    let index = times[clock] ?? -1
+    if index < 0 || (times[next_clock] ?? -1) != index + 1 { return None }
+    return map { "lats": axes["lats"], "lons": axes["lons"], "vectors": hourly_vectors(locations, index, level) }
+}
+
+fn wind(grid, position: Array, fraction: Float) {
+    if is_none(grid) { return None }
+    let lat = bracket(grid["lats"], position[0])
+    let lon = bracket(grid["lons"], position[1])
+    if is_none(lat) || is_none(lon) { return None }
+    let width = len(grid["lons"])
+    let corner = lat[0] * width + lon[0]
+    let fy = lat[1]
+    let fx = lon[1]
+    let indexes = [corner, corner + 1, corner + width, corner + width + 1]
+    let weights = [(1.0 - fx) * (1.0 - fy), fx * (1.0 - fy), (1.0 - fx) * fy, fx * fy]
+    let vectors = grid["vectors"]
+    let mut east = 0.0
+    let mut north = 0.0
+    for i in 0..4 {
+        let v = vectors[indexes[i]]
+        if is_none(v) { return None }
+        east = east + weights[i] * (v[0] * (1.0 - fraction) + v[2] * fraction)
+        north = north + weights[i] * (v[1] * (1.0 - fraction) + v[3] * fraction)
+    }
+    return [east, north]
+}
+
+fn sample(near, far, position: Array, fraction: Float) {
+    let local = wind(near, position, fraction)
+    if !is_none(local) { return local }
+    return wind(far, position, fraction)
+}
+
+fn advance(position: Array, vector: Array, hours: Float) -> Array {
+    let lat = position[0]
+    let km_per_lon = 111.195 * max(0.01, cos(radians(lat)))
+    return [lat + vector[1] * hours / 111.195, position[1] + vector[0] * hours / km_per_lon]
+}
+
+fn step_rk2(near, far, position: Array, fraction: Float) {
+    let first = sample(near, far, position, fraction)
+    if is_none(first) { return None }
+    let midpoint = advance(position, first, 0.125)
+    let second = sample(near, far, midpoint, fraction + 0.125)
+    if is_none(second) { return None }
+    let next = advance(position, second, 0.25)
+    if !is_finite(next[0]) || !is_finite(next[1]) { return None }
+    return next
+}
+
+fn track_result(points: Array) -> Map {
+    let reached = points[-1]["h"]
+    let truncated = len(points) < LIMIT * 4 + 1
+    let duration = if (len(points) - 1) % 4 == 0 { str(floor(reached)) } else { str(reached) }
+    let reason = if truncated { "Missing forecast or outside sampled region at +#{duration}h" } else { None }
+    return map { "points": points, "hours_reached": reached, "truncated": truncated, "reason": reason }
+}
+
+fn integrate_level(near: Map, far, level: String, midnight: Int) -> Map {
+    let near_locations = near["locations"]
+    let far_locations = if is_none(far) { [] } else { far["locations"] }
+    let near_axes = near["grid"]
+    let far_axes = if is_none(far) { map {} } else { far["grid"] }
+    let near_times = grid_times(near_locations)
+    let far_times = grid_times(far_locations)
+    let mut positions = map {}
+    let mut tracks = map {}
+    for release in RELEASES {
+        let key = str(release)
+        tracks[key] = [map { "lat": SITE[0], "lon": SITE[1], "h": 0 }]
+        positions[key] = SITE
+    }
+
+    // Each quarter-hour and its midpoint use the same adjacent weather hours.
+    // Share these small slices across releases; avoid copying whole grids on every sample.
+    for hour in RELEASES[0]..(RELEASES[-1] + LIMIT) {
+        let mut active = []
+        for release in RELEASES {
+            if release <= hour && hour < release + LIMIT && !is_none(positions[str(release)]) {
+                active = push(active, release)
+            }
+        }
+        if len(active) == 0 { continue }
+        let moment = midnight + hour * 3600
+        let clock = format_timestamp(moment, "%Y-%m-%dT%H:00")
+        let next_clock = format_timestamp(moment + 3600, "%Y-%m-%dT%H:00")
+        let local = hour_slice(near_axes, near_locations, near_times, level, clock, next_clock)
+        let regional = hour_slice(far_axes, far_locations, far_times, level, clock, next_clock)
+        for release in active {
+            let key = str(release)
+            let mut position = positions[key]
+            let mut points = tracks[key]
+            for quarter in 0..4 {
+                position = step_rk2(local, regional, position, unwrap(float(quarter)) * 0.25)
+                // A stopped release never resumes even if later winds are available.
+                if is_none(position) { break }
+                let elapsed = unwrap(float((hour - release) * 4 + quarter + 1)) * 0.25
+                let point = map { "lat": round(position[0], 6), "lon": round(position[1], 6), "h": elapsed }
+                points = points + [point]
+            }
+            positions[key] = position
+            tracks[key] = points
+        }
+    }
+    let mut result = map {}
+    for release in RELEASES {
+        let key = str(release)
+        result[key] = track_result(tracks[key])
+    }
+    return result
+}
+
+export fn build_forecast_paths(event_date: String, models: Map, regional: Map) -> Map {
+    // Use UTC only as a sortable clock for Chicago labels. This fixed November
+    // window does not cross a daylight-saving transition. No zone conversion.
+    let midnight = unwrap(parse_iso(event_date + "T00:00:00Z"))
+    let mut paths = map {}
+    for key in keys(models) {
+        let near = models[key]
+        let far = regional[key]
+        let mut releases = map {}
+        for release in RELEASES { releases[str(release)] = map {} }
+        for level in near["available_levels"] {
+            let tracks = integrate_level(near, far, level, midnight)
+            for release in RELEASES {
+                let release_key = str(release)
+                let mut levels = releases[release_key]
+                levels[level] = tracks[release_key]
+                releases[release_key] = levels
+            }
+        }
+        paths[key] = releases
+    }
+    return paths
+}

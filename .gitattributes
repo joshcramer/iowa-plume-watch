@@ -1,0 +1,4 @@
+# Keep vendored Leaflet bytes intact for its published SRI hashes.
+public/css/vendor/leaflet.css -text whitespace=cr-at-eol
+public/js/vendor/leaflet.js -text
+public/js/vendor/leaflet-license.txt -text whitespace=cr-at-eol

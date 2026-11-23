@@ -1,0 +1,10 @@
+[project]
+name = "larri-site-template"
+
+# Declare every secret the app reads with std/secrets.require_secret().
+# Values arrive through the project's OpenBao path, never this file or .env.
+#
+# [secrets.EXAMPLE_PROVIDER_KEY]
+# description = "What the secret is for"
+# required = true
+# environments = ["production"]

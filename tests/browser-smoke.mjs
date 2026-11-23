@@ -1,12 +1,13 @@
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 
+const origin=process.env.APP_URL || 'http://127.0.0.1:8080';
 const browser = await chromium.launch({headless:true,args:['--no-sandbox']});
 const page = await browser.newPage({viewport:{width:1280,height:950},deviceScaleFactor:1});
 const errors=[];
 page.on('pageerror',e=>errors.push(e.message));
 try {
-  await page.goto('http://127.0.0.1:8000/',{waitUntil:'domcontentloaded',timeout:30000});
+  await page.goto(`${origin}/`,{waitUntil:'domcontentloaded',timeout:30000});
   await page.waitForFunction(
     () => document.querySelectorAll('.wind-path-svg .forecast-path').length >= 2,
     null,{timeout:25000}
@@ -134,8 +135,11 @@ try {
   }
     const mobile=await browser.newPage({viewport:{width:390,height:844},deviceScaleFactor:1});
   try{
-    await mobile.goto('http://127.0.0.1:8000/',{waitUntil:'domcontentloaded'});
+    await mobile.goto(`${origin}/`,{waitUntil:'domcontentloaded'});
     await mobile.waitForFunction(()=>document.querySelectorAll('.mini-map-card').length===4,null,{timeout:25000});
+    const mobileLayout=await mobile.evaluate(()=>({top:document.querySelector('#map').getBoundingClientRect().top, width:document.documentElement.clientWidth, scroll:document.documentElement.scrollWidth}));
+    assert.ok(mobileLayout.top<440,'Map should start within the first phone viewport');
+    assert.ok(mobileLayout.scroll<=mobileLayout.width,'Page should not scroll sideways');
     const cols=await mobile.evaluate(()=>getComputedStyle(document.querySelector('.mini-map-grid')).gridTemplateColumns);
     assert.equal(cols.trim().split(/\s+/).length,1,'Mobile should show one mini-map column');
     await mobile.locator('.mini-map-card[data-level="10m"]').screenshot({path:'browser-mobile-minis.png'});

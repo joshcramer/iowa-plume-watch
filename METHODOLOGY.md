@@ -18,7 +18,7 @@ The collector requests valid hourly forecast times for Nov. 25–26, 2026 in the
 
 Pressure is NOT height. Atmospheric 925 and 850 hPa pressure surfaces vary in elevation with weather, and are often roughly 0.8 km and 1.5 km above mean sea level, respectively. Ground at the plant is already elevated above sea level. A trajectory fixed at 850 hPa is not the 3-D trajectory of a plume that starts on the ground and rises through the atmosphere.
 
-`fetched_at_utc` records *download time*, not an independently validated model-run initialization time. Valid-times reported by the API are preserved in each point's time array. A provider may update or revise forecasts; the latest fetch overwrites the previous snapshot. Git history remains the revision history, if data changes are committed.
+`fetched_at_utc` records *download time*, not an independently validated model-run initialization time. Valid-times reported by the API are preserved in each point's time array. A provider may update or revise forecasts; the latest fetch overwrites the previous snapshot. The last confirmed snapshot is retained on the deployment’s data volume; runtime refreshes are not Git commits.
 
 ## Wind vectors and motion
 
@@ -44,7 +44,7 @@ The cyan line follows an **approximation** of the normal Eastern Iowa Airport �
 
 ## How updates and statuses work
 
-The workflow is scheduled every three hours and on push / manual dispatch. It runs deterministic tests first, then attempts all models separately. **Failed model calls are omitted**; if all calls fail the site continues showing the previous snapshot, marked stale when its downloaded age exceeds nine hours. This is a forecast *refresh interval*, not real-time sensing or guaranteed update frequency.
+A separate NTNT worker attempts updates every three hours. The website serves its local snapshot without waiting on upstream providers. **Failed model calls are omitted**; if all calls fail the site continues showing the previous snapshot, marked stale when its downloaded age exceeds nine hours. This is a forecast *refresh interval*, not real-time sensing or guaranteed update frequency.
 
 Government web pages are checked for *changed visible text*, a heuristic that can be fooled by page layout changes or by substantive updates embedded in PDF files or images. Changes must be **manually reviewed**; the source watcher never declares an all-clear or reports measured contamination. The event schedule remains in a manually verified JSON status file and must be changed with a direct authoritative link.
 
@@ -61,8 +61,8 @@ No presence/absence of a modeled point near Cedar Rapids, Davenport or the I-380
 
 ## Reproducibility
 
-Review all source in `scripts/`, `assets/js/`, the workflow and `tests/`. Run `python -m unittest discover -s tests -v` and `node --test tests/*.test.mjs` before modifying calculations. No hidden runtime services, credentials, telemetry or user accounts are required. The only external requests from the public web page are map tiles/fonts and the site's versioned forecast/status JSON files.
+Review the native worker and collectors under `jobs/` and `lib/`, client map code in `public/js/`, and the tests referenced in the README. There are no user accounts or tracking. The browser requests map tiles and same-origin forecast and status JSON.
 
 ## Regional trajectories: 24 and 48 hours
 
-The short-range sample grid covers only the Iowa region and November 25–26. The regional module `scripts/build_extended.py` separately queries Open-Meteo's model-specific GFS and ECMWF APIs over November 25–27, on a 2°×2° lattice roughly spanning 27–51° N and 105–69° W. It integrates constant-level air-parcel paths in 15-minute steps and uses a local-grid vector when available; after that it uses bilinear spatial interpolation and hourly temporal interpolation of **u/v** wind components over the coarse regional lattice. The coarse grid is used only during the scheduled build, and is not shipped with the website. Output tracks include their provenance, timestamps, incomplete-path reasons and exact last modeled hour. The browser requires matching near/extended forecast snapshot timestamps, rather than combining unrelated collection cycles. A 48-hour calculation is *not* validation of source-term release height, lead particle transport, dispersion or health impact, and cannot establish contamination or safety. RRFS's shorter forecast horizon and the limited near-site domain are honored with path truncation rather than extrapolation.
+The short-range sample grid covers only the Iowa region and November 25–26. The regional module `lib/forecast_feed.tnt` and `lib/forecast_tracks.tnt` separately queries Open-Meteo's model-specific GFS and ECMWF APIs over November 25–27, on a 2°×2° lattice roughly spanning 27–51° N and 105–69° W. It integrates constant-level air-parcel paths in 15-minute steps and uses a local-grid vector when available; after that it uses bilinear spatial interpolation and hourly temporal interpolation of **u/v** wind components over the coarse regional lattice. The coarse grid is used only during the scheduled refresh, and is not shipped with the website. Output tracks include their provenance, timestamps, incomplete-path reasons and exact last modeled hour. The browser requires matching near/extended forecast snapshot timestamps, rather than combining unrelated collection cycles. A 48-hour calculation is *not* validation of source-term release height, lead particle transport, dispersion or health impact, and cannot establish contamination or safety. RRFS's shorter forecast horizon and the limited near-site domain are honored with path truncation rather than extrapolation.

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {PLANT,fromWind,integrate,localHour,sampleWind,sourceWind,closestToRoute,toCompass} from '../assets/js/trajectory.js';
+import {PLANT,fromWind,integrate,localHour,sampleWind,sourceWind,closestToRoute,toCompass} from '../public/js/trajectory.js';
 function fakeModel(speed=20,dir=45){
   const lats=[39,40,41,42,43],lons=[-94,-92,-90,-88],locations=[];
   const time=Array.from({length:48},(_,i)=>localHour('2026-11-25',i));

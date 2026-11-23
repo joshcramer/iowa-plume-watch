@@ -1,0 +1,8 @@
+import { execute } from "std/db/sqlite"
+
+fn migrate(db) {
+    unwrap(execute(db, "CREATE TABLE weather_snapshot (id INTEGER PRIMARY KEY CHECK (id = 1), forecast TEXT NOT NULL, extended TEXT NOT NULL, fetched_at TEXT NOT NULL)", []))
+    unwrap(execute(db, "CREATE TABLE source_snapshot (id INTEGER PRIMARY KEY CHECK (id = 1), payload TEXT NOT NULL)", []))
+    unwrap(execute(db, "CREATE TABLE job_attempts (name TEXT PRIMARY KEY, attempted_at INTEGER NOT NULL)", []))
+    return true
+}

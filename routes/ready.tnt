@@ -1,0 +1,12 @@
+import { json } from "std/http/server"
+import { query_rows } from "lib/database"
+
+// Readiness: storage is usable. /health stays a lightweight liveness probe.
+// @implements: feature.starter_infra
+fn get(req) {
+    let rows = query_rows("SELECT 1 AS ok", []) otherwise {
+        return json(map { "status": "unavailable" }, 503)
+    }
+    if len(rows) != 1 { return json(map { "status": "unavailable" }, 503) }
+    return json(map { "status": "ready" })
+}

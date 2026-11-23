@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {inspectNearestTrack,distanceKm,formatElapsed} from '../assets/js/inspect.js';
-import {sharedProjection,atHour} from '../assets/js/minimaps.js';
+import {inspectNearestTrack,distanceKm,formatElapsed} from '../public/js/inspect.js';
+import {sharedProjection,atHour} from '../public/js/minimaps.js';
 test('hover inspection interpolates exact elapsed time and traveled distance',()=>{
  const track={key:'850hPa',label:'850 hPa',color:'#d9a2ff',
    points:[{lat:40,lon:-91,h:0},{lat:41,lon:-91,h:2},{lat:42,lon:-91,h:4}]};

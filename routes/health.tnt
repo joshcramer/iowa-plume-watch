@@ -1,0 +1,7 @@
+import { json } from "std/http/server"
+
+// Liveness only. Installed persistence recipes add their own readiness checks.
+// @implements: feature.starter_infra
+fn get(req) {
+    return json(map { "status": "ok" })
+}

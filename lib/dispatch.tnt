@@ -1,0 +1,17 @@
+import { now, parse_iso } from "std/time"
+import { enqueue } from "std/jobs"
+import { last_attempt } from "lib/snapshots"
+
+fn is_forecast_window(timestamp: Int) -> Bool {
+    return timestamp < unwrap(parse_iso("2026-11-28T06:00:00Z"))
+}
+
+fn dispatch_due() {
+    let timestamp = now()
+    if is_forecast_window(timestamp) && timestamp - last_attempt("forecast") >= 10800 {
+        unwrap(enqueue("RefreshForecast", map {}))
+    }
+    if timestamp - last_attempt("source-watch") >= 10800 {
+        unwrap(enqueue("CheckSourcePages", map {}))
+    }
+}

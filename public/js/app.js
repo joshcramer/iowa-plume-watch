@@ -101,7 +101,7 @@ function createHoverInspector(map){
     const when=clockAt(state.release,hit.elapsedHours);
     const future=hit.elapsedHours>state.elapsed+.05;
     panel.innerHTML=
-      '<div class="inspect-heading"><span class="inspect-dot" style="background:'+color+'"></span>'+
+      '<div class="inspect-heading"><span class="inspect-dot" ></span>'+
       escapeText(hit.label||hit.levelKey||'Wind trajectory')+
       '<span class="inspect-phase">'+(future?'Later forecast':'Up to selected time')+'</span></div>'+
       '<strong class="inspect-elapsed">'+formatElapsed(hit.elapsedHours)+'</strong>'+
@@ -114,6 +114,7 @@ function createHoverInspector(map){
     pointer.style.left=hit.x+'px';
     pointer.style.top=hit.y+'px';
     pointer.style.borderColor=color;
+    panel.querySelector('.inspect-dot').style.backgroundColor=color;
     const panelWidth=244,panelHeight=175;
     panel.style.left=Math.round(Math.max(8,Math.min(x+17,box.width-panelWidth-8)))+'px';
     panel.style.top=Math.round(y>box.height-panelHeight-15?Math.max(6,y-panelHeight-14):Math.max(6,y+15))+'px';
@@ -175,11 +176,12 @@ function installControls(){
   const levels=el('level-controls');
   for(const level of LEVELS){
     const item=document.createElement('label');item.className='level-check';
-    item.innerHTML=`<input type="checkbox" data-level="${level.key}" checked><i class="color-marker" style="background:${level.color}"></i> ${escapeText(level.label)}`;
+    item.innerHTML=`<input type="checkbox" data-level="${level.key}" checked><i class="color-marker" data-level="${level.key}"></i> ${escapeText(level.label)}`;
     item.querySelector('input').addEventListener('change',e=>{
       if(e.target.checked)state.enabled.add(level.key);else state.enabled.delete(level.key);
       safeRender();
     });
+    item.querySelector('.color-marker').style.backgroundColor=level.color;
     levels.appendChild(item);
   }
   el('release-select').addEventListener('change',e=>{pauseTimeline();state.release=Number(e.target.value);safeRender();});
@@ -198,9 +200,11 @@ function installControls(){
   });
   el('model-select').addEventListener('change',e=>{state.model=e.target.value;safeRender();});
 }
+function scenarioArchived(){return Date.now()>=Date.parse('2026-11-28T06:00:00Z');}
 function statusClass(snapshot){
   if(snapshot?.status!=='forecast'||!snapshot.fetched_at_utc)return ['Awaiting forecast','pending'];
   const age=(Date.now()-new Date(snapshot.fetched_at_utc).getTime())/3600000;
+  if(scenarioArchived())return ['Archived forecast','archive'];
   if(age>9)return ['Stale forecast · check timestamp','stale'];
   return ['Forecast inputs available','live'];
 }
@@ -212,7 +216,7 @@ function renderHeader(){
   el('forecast-badge').dataset.kind=kind;
   el('model-count').textContent=count?String(count):'0';
   el('updated-at').textContent=s?.fetched_at_utc?formatDate(s.fetched_at_utc):'Pending';
-  el('updated-foot').textContent=s?.fetched_at_utc?'Weather data fetched (not a verified model initialization cycle)':'GitHub Actions must run first';
+  el('updated-foot').textContent=s?.fetched_at_utc?'Weather data fetched (not a verified model initialization cycle)':'Waiting for a successful forecast check';
   el('map-label').textContent=`Nov 25 · ${state.release===12?'Hypothetical noon':state.release<12?`${state.release}:00 a.m.`:`${state.release-12}:00 p.m.`} release`;
   const issue=state.loadError || (kind==='stale'?'The last successful weather fetch is more than nine hours old. Treat paths as outdated until the forecast collector completes again.':'');
   el('error-message').hidden=!issue;
@@ -230,7 +234,7 @@ function render(){
     state.hoverInspector?.hide();
     state.transportOverlay?.setTracks([],{elapsedHours:state.elapsed,releaseHour:state.release,showTimeDots:state.showTimeDots});
     updateTimeline();
-    overlayStatus.textContent=state.loadError ? `Overlay unavailable: ${state.loadError}` : 'Awaiting live wind paths. No forecast overlay is displayed.';el('route-distance').textContent='Unavailable';el('model-readout').textContent='No live forecast from a validated model is available. The static reference diagrams below remain non-live, illustrative analyses.';el('wind-rows').innerHTML='<div class="empty-winds">No verified numerical upper-air winds loaded yet. Run the forecast workflow in GitHub Actions.</div>';return;}
+    overlayStatus.textContent=state.loadError ? `Overlay unavailable: ${state.loadError}` : 'Awaiting live wind paths. No forecast overlay is displayed.';el('route-distance').textContent='Unavailable';el('model-readout').textContent='No live forecast from a validated model is available. The static reference diagrams below remain non-live, illustrative analyses.';el('wind-rows').innerHTML='<div class="empty-winds">No verified numerical upper-air winds loaded yet.</div>';return;}
   const metrics=[];
   const winds=[];
   const displayPaths=[];
@@ -241,7 +245,7 @@ function render(){
     const traj=horizonTrack(model,level.key);
     if(!forecast){winds.push(`<div class="wind-row"><div><strong>${escapeText(level.label)}</strong></div><div>Unavailable</div><div>—</div></div>`);continue;}
     const towards=(forecast.comingFrom+180)%360;
-    winds.push(`<div class="wind-row"><div><strong><i class="color-marker" style="background:${level.color};margin-right:8px"></i>${escapeText(level.label)}</strong><small>${escapeText(level.note)}</small></div><div class="wind-from"><span class="wind-arrow" style="transform:rotate(${towards}deg)">↑</span>${toCompass(forecast.comingFrom)} · ${mph(forecast.speedKmh)}</div><div class="wind-to">${toCompass(towards)} · ${Math.round(towards)}°</div></div>`);
+    winds.push(`<div class="wind-row"><div><strong><i class="color-marker" data-level="${level.key}"></i>${escapeText(level.label)}</strong><small>${escapeText(level.note)}</small></div><div class="wind-from"><span class="wind-arrow"  aria-hidden="true">${['↑','↗','→','↘','↓','↙','←','↖'][Math.round(towards/45)%8]}</span>${toCompass(forecast.comingFrom)} · ${mph(forecast.speedKmh)}</div><div class="wind-to">${toCompass(towards)} · ${Math.round(towards)}°</div></div>`);
     if(traj.points.length>=2)allMiniTracks.push({key:level.key,points:traj.points,color:level.color,label:level.label,
       note:level.note,truncated:traj.truncated});
     if(!state.enabled.has(level.key))continue;
@@ -289,7 +293,7 @@ function render(){
     const min=Math.min(...metrics.map(m=>m.closest));
     el('route-distance').textContent=miles(min);
     const headline=metrics.map(m=>`${escapeText(m.level.short)}: ${toCompass(m.wind.headingTo)} at ${mph(m.wind.speedKmh)}`).join('<br>');
-    el('model-readout').innerHTML=`<b>${escapeText(model.name)}</b><br>${headline}<br><br><b>${miles(min)}</b> minimum path-centerline distance to the approximate airport route.${incomplete?`<br><span style="color:#ffcc86">${incomplete} path(s) truncated due to missing wind data or exiting the sampled grid.</span>`:''}`;
+    el('model-readout').innerHTML=`<b>${escapeText(model.name)}</b><br>${headline}<br><br><b>${miles(min)}</b> minimum path-centerline distance to the approximate airport route.${incomplete?`<br><span class="readout-warning">${incomplete} path(s) truncated due to missing wind data or exiting the sampled grid.</span>`:''}`;
   }else{
     el('long-range-warning').hidden=true;
     overlayStatus.textContent='No trajectories for this selection. Check the available wind levels, time, and forecast timestamp.';
@@ -299,7 +303,7 @@ function render(){
 }
 async function loadForecast(){
   try{
-    const r=await fetch('./data/forecast.json',{cache:'no-store'});
+    const r=await fetch('/data/forecast.json',{cache:'no-store'});
     if(!r.ok)throw new Error(`HTTP ${r.status}`);
     const snapshot=await r.json();
     validateSnapshot(snapshot);
@@ -322,14 +326,14 @@ async function loadForecast(){
 }
 async function loadOfficial(){
   try{
-    const r=await fetch('./data/official-status.json',{cache:'no-store'}),s=await r.json();
+    const r=await fetch('/data/official-status.json',{cache:'no-store'}),s=await r.json();
     el('official-heading').textContent=s.scheduled_date?'Scheduled · '+s.scheduled_date:'Official update pending';
     el('official-text').textContent=s.headline||'No current status verified';
     el('official-link').href=s.source_url||'https://www.army.mil/asc';
     el('official-reviewed').textContent=s.last_verified_note||'Manual verification required';
   }catch{el('official-reviewed').textContent='Official status file could not be loaded';}
   try{
-    const r=await fetch('./data/source-watch.json',{cache:'no-store'}),s=await r.json();
+    const r=await fetch('/data/source-watch.json',{cache:'no-store'}),s=await r.json();
     const updated=Array.isArray(s.changed_on_this_check)?s.changed_on_this_check:[];
     el('sources-checked').textContent=s.checked_at_utc?formatDate(s.checked_at_utc):'Monitoring pending';
     const failures=Object.keys(s.fetch_errors||{});
@@ -342,7 +346,7 @@ async function loadOfficial(){
 }
 async function loadExtended(){
   try{
-    const r=await fetch('./data/extended-tracks.json',{cache:'no-store'});
+    const r=await fetch('/data/extended-tracks.json',{cache:'no-store'});
     if(!r.ok)throw Error('HTTP '+r.status);
     const snap=await r.json();
     state.extended=snap?.schema===1 && snap?.status==='extended-trajectory'?snap:null;
