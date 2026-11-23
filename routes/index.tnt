@@ -1,11 +1,15 @@
-import { html } from "std/http/server"
+import { response } from "std/http/server"
 import { render_page } from "lib/layout"
 
 fn get(req) {
-    return html(render_page(map {
+    let page = render_page(map {
         "title": "Iowa Plume Watch · Wind transport explorer",
         "description": "Independent wind-transport screening for Middletown, Iowa. Not a health advisory or exposure map.",
         "body_class": "page-home",
         "content": template("views/home.html", map {})
-    }))
+    })
+    return response(200, map {
+        "Content-Type": "text/html; charset=utf-8",
+        "Cache-Control": "no-store, no-transform"
+    }, page)
 }

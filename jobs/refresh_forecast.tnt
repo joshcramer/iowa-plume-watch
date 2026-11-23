@@ -3,7 +3,7 @@ import { is_forecast_window } from "lib/dispatch"
 import { record_attempt, store_weather } from "lib/snapshots"
 import { collect_forecast } from "lib/forecast_feed"
 
-job RefreshForecast on forecasts (retry: 1, backoff: "exponential", timeout: 600, unique: 900) {
+job RefreshForecast on forecasts (retry: 1, backoff: "exponential", timeout: 600, unique: 10800) {
     perform() {
         if is_forecast_window(now()) {
             record_attempt("forecast")
