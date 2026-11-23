@@ -84,3 +84,7 @@ OpenStreetMap tiles are donation-funded and best-effort, not an unlimited produc
 The forecast trajectory lines are drawn as an HTML SVG overlay above the Leaflet map, using Leaflet solely to project geographic coordinates to screen pixels. This avoids Leaflet Canvas stacking and platform-specific renderer issues; the overlay redraws on map pan, zoom, resizing, and forecast selection. The SVG contains only air-parcel centerlines, **not** a hazardous plume footprint, concentration field, or deposition prediction.
 
 The map's SVG also draws the approximate Cedar Rapids airport–Davenport route, plant marker, airport and destination labels, plus a geographic reference grid. They remain visible even if public OSM raster tiles fail to load. Only the map illustration is resilient; missing tiles do not say anything about actual contamination.
+
+### Time markers and interactive timeline
+
+The map labels elapsed time after a **hypothetical, instantaneous release**. Small dots mark each forecast hour; legible labels mark +2h, +4h, +6h, etc. A collision-avoidance pass may hide labels that overlap, but it retains their dots. The scrubber highlights the portion of each fixed-level air-parcel trajectory reached by its selected elapsed time, with a CST wall-clock label computed from the selected hypothetical detonation time. The playback control advances 15 modeled minutes at each step. Faded segments show what the model predicts *later*, not a smoke front, a spreading plume, or a measured environmental hazard. Trajectories stop when wind data are unavailable.

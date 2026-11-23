@@ -53,6 +53,18 @@ try {
   assert.ok(details.dx<3&&details.dy<3&&details.widthDiff<3,'Overlay must align to map container');
   assert.match(details.status,/path/i,'Overlay status must report paths');
   await page.locator('#map').scrollIntoViewIfNeeded();
+
+  // A two-hour map label and the scrubber must agree on elapsed time.
+  assert.ok(await page.locator('.wind-path-svg .forecast-time-label').count()>0,'Forecast paths must have elapsed-time labels');
+  assert.equal(await page.locator('#timeline-slider').inputValue(),'4');
+  assert.match(await page.locator('#timeline-clock').textContent(),/\+4h.*Nov 25.*4:00 PM CST/);
+  const markerBefore=await page.locator('.wind-path-svg .selected-time-marker').first().locator('circle').first().getAttribute('cx');
+  await page.locator('#timeline-slider').fill('2');
+  const markerAfter=await page.locator('.wind-path-svg .selected-time-marker').first().locator('circle').first().getAttribute('cx');
+  assert.notEqual(markerBefore,markerAfter,'Scrubber must move selected time position on forecast lines');
+  assert.match(await page.locator('#timeline-clock').textContent(),/\+2h.*2:00 PM CST/);
+  await page.locator('#timeline-slider').fill('4');
+
   await page.locator('#map').screenshot({path:'browser-map-default.png'});
   const first=await page.locator('.wind-path-svg .forecast-path').first().getAttribute('d');
   await page.selectOption('#release-select','15');

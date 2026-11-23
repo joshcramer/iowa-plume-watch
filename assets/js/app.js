@@ -1,12 +1,56 @@
 import {EVENT_DATE,PLANT,PLACES,ROUTE,LEVELS,integrate,sourceWind,toCompass,closestToRoute,validateSnapshot} from './trajectory.js';
-import {createTransportOverlay} from './overlay.js';
+import {createTransportOverlay,clockAt} from './overlay.js';
 
 const el=id=>document.getElementById(id);
-const state={snapshot:null,model:'',release:12,duration:8,enabled:new Set(LEVELS.map(x=>x.key)),layers:[],map:null,routeLayer:null,transportOverlay:null,viewKey:'',loadError:''};
+const state={snapshot:null,model:'',release:12,duration:8,enabled:new Set(LEVELS.map(x=>x.key)),layers:[],map:null,routeLayer:null,transportOverlay:null,elapsed:4,viewKey:'',loadError:''};
 const formatDate=(iso,withYear=false)=>iso?new Intl.DateTimeFormat('en-US',{timeZone:'America/Chicago',month:'short',day:'numeric', ...(withYear?{year:'numeric'}:{}),hour:'numeric',minute:'2-digit'}).format(new Date(iso))+' CST':'—';
 const escapeText=str=>String(str??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const miles=km=>`${(km/1.609344).toFixed(1)} mi`;
 const mph=kmh=>`${(kmh/1.609344).toFixed(1)} mph`;
+let timelineTimer=null;
+function pauseTimeline(){
+  if(timelineTimer!==null){clearInterval(timelineTimer);timelineTimer=null;}
+  const play=el('timeline-play');
+  if(play){play.textContent='▶ Play';play.setAttribute('aria-label','Play time progression');}
+}
+function updateTimeline(){
+  state.elapsed=Math.max(0,Math.min(state.duration,state.elapsed));
+  const control=el('timeline-slider');
+  if(!control)return;
+  control.max=String(state.duration);
+  control.value=String(state.elapsed);
+  control.setAttribute('aria-valuetext',`+${state.elapsed} hours; ${clockAt(state.release,state.elapsed)}`);
+  const value=state.elapsed===Math.round(state.elapsed)?state.elapsed.toFixed(0):state.elapsed.toFixed(2).replace(/0$/,'');
+  el('timeline-clock').textContent=`+${value}h · ${clockAt(state.release,state.elapsed)}`;
+  const marks=[0];
+  for(let i=2;i<state.duration;i+=2)marks.push(i);
+  if(marks.at(-1)!==state.duration)marks.push(state.duration);
+  const ticks=el('timeline-ticks');
+  ticks.replaceChildren(...marks.map(hour=>{
+    const span=document.createElement('span');span.textContent='+'+hour+'h';return span;
+  }));
+  state.transportOverlay?.setElapsed(state.elapsed);
+}
+function installTimeline(){
+  el('timeline-slider').addEventListener('input',event=>{
+    pauseTimeline();
+    state.elapsed=Number(event.target.value);
+    updateTimeline();
+  });
+  el('timeline-play').addEventListener('click',()=>{
+    if(timelineTimer!==null){pauseTimeline();return;}
+    if(state.elapsed>=state.duration-1e-7)state.elapsed=0;
+    updateTimeline();
+    el('timeline-play').textContent='Ⅱ Pause';
+    el('timeline-play').setAttribute('aria-label','Pause time progression');
+    timelineTimer=setInterval(()=>{
+      state.elapsed=Math.min(state.duration,state.elapsed+.25);
+      updateTimeline();
+      if(state.elapsed>=state.duration-1e-7)pauseTimeline();
+    },400);
+  });
+  updateTimeline();
+}
 
 function makeMap(){
   if(typeof L==='undefined'){el('map-fallback').hidden=false;return;}
@@ -41,8 +85,8 @@ function installControls(){
     });
     levels.appendChild(item);
   }
-  el('release-select').addEventListener('change',e=>{state.release=Number(e.target.value);safeRender();});
-  el('duration-range').addEventListener('input',e=>{state.duration=Number(e.target.value);el('duration-label').textContent=`${state.duration} ${state.duration===1?'hour':'hours'}`;safeRender();});
+  el('release-select').addEventListener('change',e=>{pauseTimeline();state.release=Number(e.target.value);safeRender();});
+  el('duration-range').addEventListener('input',e=>{pauseTimeline();state.duration=Number(e.target.value);el('duration-label').textContent=`${state.duration} ${state.duration===1?'hour':'hours'}`;safeRender();});
   el('model-select').addEventListener('change',e=>{state.model=e.target.value;safeRender();});
 }
 function statusClass(snapshot){
@@ -72,7 +116,8 @@ function render(){
   const model=state.snapshot?.models?.[state.model];
   const overlayStatus=el('overlay-status');
   if(!model){
-    state.transportOverlay?.setTracks([]);
+    state.transportOverlay?.setTracks([],{elapsedHours:state.elapsed,releaseHour:state.release});
+    updateTimeline();
     overlayStatus.textContent=state.loadError ? `Overlay unavailable: ${state.loadError}` : 'Awaiting live wind paths. No forecast overlay is displayed.';el('route-distance').textContent='Unavailable';el('model-readout').textContent='No live forecast from a validated model is available. The static reference diagrams below remain non-live, illustrative analyses.';el('wind-rows').innerHTML='<div class="empty-winds">No verified numerical upper-air winds loaded yet. Run the forecast workflow in GitHub Actions.</div>';return;}
   const metrics=[];
   const winds=[];
@@ -92,7 +137,8 @@ function render(){
       displayTracks.push({points:traj.points,color:level.color,label:level.label,truncated:traj.truncated});
     }
   }
-  state.transportOverlay?.setTracks(displayTracks);
+  state.transportOverlay?.setTracks(displayTracks,{elapsedHours:state.elapsed,releaseHour:state.release});
+  updateTimeline();
   el('wind-rows').innerHTML=winds.join('');
   if(metrics.length){
     // Center the viewport on the trajectories AND the airport corridor.
@@ -172,7 +218,7 @@ function safeRender(){
     el('overlay-status').textContent=state.loadError;
   }
 }
-makeMap();installControls();safeRender();loadForecast();loadOfficial();
+makeMap();installControls();installTimeline();safeRender();loadForecast();loadOfficial();
 // A tab left open picks up newly published snapshots without a page reload.
 setInterval(()=>{loadForecast();loadOfficial();},5*60*1000);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden){loadForecast();loadOfficial();}});

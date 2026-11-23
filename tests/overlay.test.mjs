@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import {projectTrack} from '../assets/js/overlay.js';
+import {projectTrack,pointAtElapsed,clockAt} from '../assets/js/overlay.js';
 test('wind trajectory projection discards invalid values but preserves valid positions',()=>{
   const map={latLngToContainerPoint:([lat,lon])=>({x:lon*2,y:lat*2})};
   const result=projectTrack(map,{points:[{lat:40,lon:-90},{lat:41,lon:-91},{lat:NaN,lon:-92}]});
@@ -14,4 +14,15 @@ test('site uses a dedicated SVG overlay for forecast lines',()=>{
   assert.match(app,/transportOverlay\?\.setTracks\(displayTracks\)/);
   assert.doesNotMatch(app,/const path=L\.polyline\(traj\.points/);
   assert.match(css,/#map\{position:relative;isolation:isolate\}/);
+});
+
+test('elapsed time markers interpolate model positions and do not extrapolate',()=>{
+  const track={points:[{lat:40,lon:-90,h:0},{lat:42,lon:-92,h:2}]};
+  assert.deepEqual(pointAtElapsed(track,1),{lat:41,lon:-91,h:1});
+  assert.equal(pointAtElapsed(track,3),null);
+  assert.equal(pointAtElapsed(track,-1),null);
+});
+test('clock labels are relative to the hypothetical release and cross midnight',()=>{
+  assert.match(clockAt(12,4),/Nov 25, 4:00 PM CST/);
+  assert.match(clockAt(23,2),/Nov 26, 1:00 AM CST/);
 });
