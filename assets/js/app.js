@@ -135,7 +135,15 @@ async function loadOfficial(){
     const r=await fetch('./data/source-watch.json',{cache:'no-store'}),s=await r.json();
     const updated=Array.isArray(s.changed_on_this_check)?s.changed_on_this_check:[];
     el('sources-checked').textContent=s.checked_at_utc?formatDate(s.checked_at_utc):'Monitoring pending';
-    el('source-watch-text').textContent=updated.length?`Changed text detected in ${updated.join(', ')}. These changes are UNREVIEWED and must not be interpreted as a safety finding.`:'No page text changes were detected in the last check, or the initial reference has not been established. This is not an environmental all-clear.';
+    const failures=Object.keys(s.fetch_errors||{});
+    const notices=[];
+    if(updated.length)notices.push(`Changed text detected in ${updated.join(', ')}. These changes are UNREVIEWED, not confirmed safety findings.`);
+    else notices.push('No changes detected in the accessible source pages on this check. This is not an environmental all-clear.');
+    if(failures.length)notices.push(`INCOMPLETE CHECK: ${failures.join(', ')} could not be accessed. Please use the official agency links directly.`);
+    el('source-watch-text').textContent=notices.join(' ');
   }catch{el('source-watch-text').textContent='Source-page change watch unavailable; check primary agency links directly.';}
 }
 makeMap();installControls();render();loadForecast();loadOfficial();
+// A tab left open picks up newly published snapshots without a page reload.
+setInterval(()=>{loadForecast();loadOfficial();},5*60*1000);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden){loadForecast();loadOfficial();}});
