@@ -11,7 +11,7 @@ test('site uses a dedicated SVG overlay for forecast lines',()=>{
   const app=fs.readFileSync(new URL('../assets/js/app.js',import.meta.url),'utf8');
   const css=fs.readFileSync(new URL('../assets/css/style.css',import.meta.url),'utf8');
   assert.match(app,/createTransportOverlay\(map/);
-  assert.match(app,/transportOverlay\?\.setTracks\(displayTracks\)/);
+  assert.match(app,/transportOverlay\?\.setTracks\(displayTracks,/);
   assert.doesNotMatch(app,/const path=L\.polyline\(traj\.points/);
   assert.match(css,/#map\{position:relative;isolation:isolate\}/);
 });
