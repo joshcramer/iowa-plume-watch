@@ -151,6 +151,13 @@ try {
     assert.ok(mobileLayout.top<440,'Map should start within the first phone viewport');
     assert.ok(mobileLayout.scroll<=mobileLayout.width,'Page should not scroll sideways');
     assert.equal(await mobile.locator('#altitude-compare').count(),0);
+    await mobile.setViewportSize({width:320,height:844});
+    const narrowFits=await mobile.evaluate(()=>{
+      const shell=document.querySelector('.header-content').getBoundingClientRect();
+      return document.querySelector('.github-button').getBoundingClientRect().right<=shell.right+1 &&
+        document.documentElement.scrollWidth<=document.documentElement.clientWidth;
+    });
+    assert.ok(narrowFits,'Wordmark and GitHub link should fit together at 320 px');
   }finally{await mobile.close();}
     assert.deepEqual(errors,[],'No uncaught JavaScript errors');
   console.log('PASS browser map overlay and controls:',details);

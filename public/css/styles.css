@@ -93,7 +93,7 @@ input:focus-visible,select:focus-visible,button:focus-visible,a:focus-visible{ou
 .readout-warning{color:#ffcc86}
 .wind-row .color-marker{margin-right:8px}
 @media(max-width:950px){.forecast-layout{grid-template-columns:minmax(0,1fr)}.header-content{min-height:55px}}
-@media(max-width:650px){#forecast{padding-top:17px}#map{height:clamp(290px,44svh,390px)}.snapshot-line{font-size:.73rem}.forecast-caution{font-size:.78rem}.timeline-play,.map-view-toggle,#model-select,#release-select,#horizon-select{min-height:44px}}
+@media(max-width:650px){#forecast{padding-top:17px}#map{height:clamp(290px,44svh,390px)}.snapshot-line{font-size:.73rem}.forecast-caution{font-size:.78rem}.timeline-play,.map-view-toggle,#model-select,#release-select,#horizon-select{min-height:44px}.header-content{gap:12px}.header-content .brand{font-size:clamp(11px,3.4vw,14px)}.header-content .brand-symbol{font-size:25px;margin-right:8px}}
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
 
 .level-check:has(input:disabled){cursor:default}
