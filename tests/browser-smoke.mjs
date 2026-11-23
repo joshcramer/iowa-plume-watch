@@ -8,7 +8,7 @@ page.on('pageerror',e=>errors.push(e.message));
 try {
   await page.goto('http://127.0.0.1:8000/',{waitUntil:'domcontentloaded',timeout:30000});
   await page.waitForFunction(
-    () => document.querySelectorAll('.wind-path-svg path').length >= 2,
+    () => document.querySelectorAll('.wind-path-svg .forecast-path').length >= 2,
     null,{timeout:25000}
   );
   const details=await page.evaluate(()=>{
