@@ -20,7 +20,7 @@ The initial package includes the **Nov. 23 static reference images** and a forec
 
 GitHub Pages URL: **https://joshcramer.github.io/iowa-plume-watch/**. Custom domain is optional. No API keys or paid server are required for initial non-commercial usage; review provider licences before commercial use.
 
-> GitHub Actions cron runs are best effort, may be delayed, and are not emergency-alert infrastructure. This scheduled workflow refreshes forecast inputs approximately every three hours. A static GitHub Pages view is reloaded on each visit—not streamed every second.
+> GitHub Actions cron runs are best effort, may be delayed, and are not emergency-alert infrastructure. This scheduled workflow refreshes forecast inputs approximately every three hours. The browser checks for published forecast and source-watch changes every five minutes while open, and again when a tab becomes visible; this is not second-by-second streaming or a guaranteed emergency-alert service.
 
 ## Local development
 
