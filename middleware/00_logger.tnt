@@ -1,0 +1,5 @@
+// middleware/00_logger.tnt — Request logging
+import { request_logger } from "std/log"
+
+// routes() autoloads this file. Do not also import it in server.tnt.
+use_middleware(request_logger())

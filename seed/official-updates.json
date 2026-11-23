@@ -1,0 +1,39 @@
+{
+  "schema": 1,
+  "entries": [
+    {
+      "id": "army-296990",
+      "published_date": "2026-11-22",
+      "reviewed_at_utc": "2026-11-23T14:00:00Z",
+      "agency": "U.S. Army",
+      "status": "scheduled",
+      "scheduled_date": "2026-11-25",
+      "scheduled_time": null,
+      "headline": "Army moves the planned operation to November 25",
+      "summary": "The Army rescheduled from Monday, November 23, to Wednesday, November 25. Its announcement did not give an exact time.",
+      "source_url": "https://www.army.mil/article/296990"
+    },
+    {
+      "id": "army-296926",
+      "published_date": "2026-11-19",
+      "agency": "U.S. Army",
+      "status": "scheduled",
+      "scheduled_date": "2026-11-23",
+      "scheduled_time": null,
+      "headline": "Army postpones the operation to November 23",
+      "summary": "The Army postponed the operation previously planned for November 20. This notice was later superseded by the November 22 announcement.",
+      "source_url": "https://www.army.mil/article/296926/postponed_lead_azide_detonation"
+    },
+    {
+      "id": "army-296772",
+      "published_date": "2026-11-15",
+      "agency": "U.S. Army",
+      "status": "scheduled",
+      "scheduled_date": "2026-11-20",
+      "scheduled_time": "Approximately noon local time",
+      "headline": "Army announces the original November 20 plan",
+      "summary": "The Army’s public advisory listed November 20 at approximately noon. This date was superseded, and the time did not carry over to the new date.",
+      "source_url": "https://www.army.mil/article/296772/iaaap_public_advisory"
+    }
+  ]
+}

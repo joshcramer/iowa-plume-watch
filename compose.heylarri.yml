@@ -1,0 +1,14 @@
+services:
+  app:
+    networks:
+      app-net: {}
+      ingress:
+        aliases: [iowa-plume-watch-preview-app]
+
+networks:
+  app-net:
+    ipam:
+      config: [{subnet: 10.251.226.0/28}]
+  ingress:
+    name: larri-sites-net
+    external: true

@@ -1,0 +1,185 @@
+import { read_file } from "std/fs"
+import { parse_json, stringify } from "std/json"
+import { parse_query } from "std/url"
+import { split, join } from "std/string"
+import { format_timestamp } from "std/time"
+import { push, slice } from "std/collections"
+import { refresh_selected_from } from "../lib/forecast_feed.tnt"
+import { build_forecast_paths } from "../lib/forecast_tracks.tnt"
+
+fn collect_forecast_from(request, pause) -> Map {
+    let targets = map { "gfs": map {}, "rrfs": map {}, "ecmwf": map {} }
+    let bundle = refresh_selected_from("2026-11-25", targets, map {}, request, pause, fn(key) {})
+    if is_none(bundle["forecast"]) { return unwrap(Err("No forecast models succeeded: " + stringify(bundle["errors"]))) }
+    return bundle
+}
+
+fn assert_eq(actual, expected) {
+    if stringify(actual) != stringify(expected) {
+        unwrap(Err("expected #{stringify(expected)}, got #{stringify(actual)}"))
+    }
+}
+
+fn constant_hourly(variables: Array, hours: Int, kmh: Int, bearing: Int) -> Map {
+    let start = 1795564800 // Nov 25, 2026 00:00 (wall clock encoded as UTC)
+    let mut times = []
+    let mut speeds = []
+    let mut directions = []
+    for hour in 0..hours {
+        times = push(times, format_timestamp(start + hour * 3600, "%Y-%m-%dT%H:00"))
+        speeds = push(speeds, kmh)
+        directions = push(directions, bearing)
+    }
+    let mut hourly = map { "time": times }
+    for name in variables {
+        hourly[name] = if split(name, "_")[1] == "speed" { speeds } else { directions }
+    }
+    return hourly
+}
+
+fn repeat_location(hourly: Map, count: Int) -> Array {
+    let mut batch = []
+    for i in 0..count { batch = push(batch, map { "hourly": hourly }) }
+    return batch
+}
+
+fn test_partial_provider_and_regional_failure() {
+    let mut calls = map { "near": 0, "regional": 0 }
+    let bundle = collect_forecast_from(fn(url) {
+        let query = parse_query(split(url, "?")[1])
+        assert_eq(query["start_date"], "2026-11-25")
+        assert_eq(query["timezone"], "America/Chicago")
+        assert_eq(query["wind_speed_unit"], "kmh")
+        assert_eq(query["cell_selection"], "nearest")
+        if query["models"] != "ecmwf_ifs025" { return Err("fixture: no data") }
+        assert_eq(join(split(query["hourly"], ","), " "), "wind_speed_10m wind_direction_10m wind_speed_925hPa wind_direction_925hPa wind_speed_850hPa wind_direction_850hPa")
+        if query["end_date"] == "2026-11-27" {
+            calls["regional"] = calls["regional"] + 1
+            return Err("fixture: no regional data")
+        }
+        assert_eq(query["end_date"], "2026-11-26")
+        calls["near"] = calls["near"] + 1
+        let lats = split(query["latitude"], ",")
+        let lons = split(query["longitude"], ",")
+        assert_eq(len(lats), 9)
+        assert_eq(len(lons), 9)
+        return Ok(repeat_location(constant_hourly(split(query["hourly"], ","), 48, 0, 270), 9))
+    }, fn(ms) {})
+    let forecast = bundle["forecast"]
+    let extended = bundle["extended"]
+    assert_eq(calls["near"], 9)
+    assert_eq(calls["regional"], 1)
+    assert_eq(forecast["schema"], 1)
+    assert_eq(forecast["status"], "forecast")
+    assert_eq(forecast["timezone"], "America/Chicago")
+    assert_eq(len(forecast["models"]), 1)
+    assert_eq(forecast["provider_errors"]["gfs"], "fixture: no data")
+    assert_eq(forecast["provider_errors"]["rrfs"], "fixture: no data")
+    let model = forecast["models"]["ecmwf"]
+    assert_eq(model["time_start"], "2026-11-25T00:00")
+    assert_eq(model["time_end"], "2026-11-26T23:00")
+    let locations = model["locations"]
+    assert_eq(len(locations), 81)
+    assert_eq(locations[0]["requested_lat"], 38.2)
+    assert_eq(locations[1]["requested_lon"], -94.2)
+    assert_eq(locations[9]["requested_lat"], 38.75)
+    assert_eq(locations[80]["requested_lat"], 42.6)
+    assert_eq(locations[80]["requested_lon"], -88.6)
+    assert_eq(extended["status"], "extended-trajectory")
+    assert_eq(extended["source_snapshot_utc"], forecast["fetched_at_utc"])
+    assert_eq(extended["provider_errors"]["ecmwf"], "fixture: no regional data")
+    assert_eq(len(extended["paths"]["ecmwf"]), 3)
+    let track = extended["paths"]["ecmwf"]["12"]["10m"]
+    assert_eq(track["truncated"], true)
+    assert_eq(track["hours_reached"], 35.0)
+    assert_eq(track["reason"], "Missing forecast or outside sampled region at +35h")
+}
+
+fn test_regional_completion_with_different_wind() {
+    let mut regional_counts = []
+    let bundle = collect_forecast_from(fn(url) {
+        let query = parse_query(split(url, "?")[1])
+        let fields = split(query["hourly"], ",")
+        let count = len(split(query["latitude"], ","))
+        if query["models"] != "ncep_gfs_global" { return Err("fixture: unavailable") }
+        if query["end_date"] == "2026-11-27" {
+            regional_counts = push(regional_counts, count)
+            return Ok(repeat_location(constant_hourly(fields, 72, 10, 0), count))
+        }
+        return Ok(repeat_location(constant_hourly(fields, 48, 0, 0), count))
+    }, fn(ms) {})
+    assert_eq(len(regional_counts), 21)
+    for i in 0..20 { assert_eq(regional_counts[i], 12) }
+    assert_eq(regional_counts[20], 7)
+    let extended = bundle["extended"]
+    assert_eq(len(extended["provider_errors"]), 0)
+    let track = extended["paths"]["gfs"]["12"]["10m"]
+    assert_eq(track["truncated"], false)
+    assert_eq(track["reason"], None)
+    assert_eq(track["hours_reached"], 48.0)
+    let points = track["points"]
+    assert_eq(len(points), 193)
+    assert_eq(points[140]["lat"], 40.825518)
+    assert_eq(points[192]["lat"], round(40.825518 - 130.0 / 111.195, 6))
+    assert_eq(points[192]["lon"], -91.266502)
+}
+
+fn test_no_valid_local_grid_raises() {
+    let mut local_calls = 0
+    let bundle = collect_forecast_from(fn(url) {
+        let query = parse_query(split(url, "?")[1])
+        assert_eq(query["end_date"], "2026-11-26")
+        local_calls = local_calls + 1
+        let mut hourly = constant_hourly(split(query["hourly"], ","), 48, 5, 270)
+        if query["models"] == "ncep_gfs_global" {
+            // The expected set exists, but the last location has a different time axis.
+            let batch = repeat_location(hourly, 8)
+            hourly["time"] = slice(hourly["time"], 1, 48)
+            return Ok(push(batch, map { "hourly": hourly }))
+        }
+        if query["models"] == "ncep_rrfs_conus" {
+            hourly["wind_direction_850hPa"] = None
+        } else {
+            hourly["wind_speed_10m"] = hourly["wind_direction_10m"]
+            hourly["wind_direction_10m"] = constant_hourly(["wind_direction_10m"], 48, 5, 361)["wind_direction_10m"]
+        }
+        return Ok(repeat_location(hourly, 9))
+    }, fn(ms) {}) otherwise {
+        assert_eq(local_calls, 3)
+        return true
+    }
+    return false
+}
+
+fn test_archived_near_tracks() {
+    let forecast = unwrap(parse_json(unwrap(read_file("../seed/forecast.json"))))
+    let extended = unwrap(parse_json(unwrap(read_file("../seed/extended-tracks.json"))))
+    assert_eq(forecast["fetched_at_utc"], extended["source_snapshot_utc"])
+    // The Python-generated archive used only near winds for RRFS and ECMWF.
+    let models = map { "rrfs": forecast["models"]["rrfs"], "ecmwf": forecast["models"]["ecmwf"] }
+    let paths = build_forecast_paths(forecast["event_date"], models, map {})
+    for key in ["rrfs", "ecmwf"] {
+        for release in ["9", "12", "15"] {
+            for level in models[key]["available_levels"] {
+                let actual = paths[key][release][level]
+                let expected = extended["paths"][key][release][level]
+                for field in ["hours_reached", "truncated", "reason"] { assert_eq(actual[field], expected[field]) }
+                let points = actual["points"]
+                let reference = expected["points"]
+                assert_eq(len(points), len(reference))
+                for i in 0..len(points) {
+                    for field in ["lat", "lon", "h"] { assert_eq(points[i][field], reference[i][field]) }
+                }
+            }
+        }
+    }
+}
+
+test_partial_provider_and_regional_failure()
+print("PASS: partial provider, spatial order, regional failure, and matching track provenance")
+test_regional_completion_with_different_wind()
+print("PASS: 247 regional locations and a 193-point 48-hour track with fine-to-coarse fallback")
+assert(test_no_valid_local_grid_raises())
+print("PASS: inconsistent axes, missing level and out-of-range direction cannot publish")
+test_archived_near_tracks()
+print("PASS: all 21 archived near-only RRFS and ECMWF paths match point for point")

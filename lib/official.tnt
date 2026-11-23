@@ -1,0 +1,41 @@
+import { parse_json } from "std/json"
+import { add_days, format_in, parse_iso } from "std/time"
+import { seed_file } from "lib/snapshots"
+
+fn official_log() -> Map {
+    return unwrap(parse_json(seed_file("official-updates")))
+}
+
+fn date_offset(date: String, days: Int) -> String {
+    return format_in(add_days(unwrap(parse_iso(date + "T00:00:00Z")), days), "UTC", "%Y-%m-%d")
+}
+
+fn schedule_from(entries: Array) -> Map {
+    // Agency news can enter the log without replacing the last schedule notice.
+    for entry in entries {
+        if is_string(entry["status"]) {
+            let date = if entry["status"] == "scheduled" { entry["scheduled_date"] } else { None }
+            return map {
+                "status": entry["status"], "scheduled_date": entry["scheduled_date"],
+                "scheduled_time": entry["scheduled_time"], "scenario_date": date,
+                "archive_on": if is_string(date) { date_offset(str(date), 3) } else { None },
+                "reviewed_at_utc": entry["reviewed_at_utc"], "published_date": entry["published_date"],
+                "headline": entry["headline"], "summary": entry["summary"], "source_url": entry["source_url"]
+            }
+        }
+    }
+    return map { "status": "unverified" }
+}
+
+fn official_status() -> Map {
+    return schedule_from(official_log()["entries"])
+}
+
+fn in_scenario_window(status: Map, timestamp: Int) -> Bool {
+    let date = status["scenario_date"]
+    if !is_string(date) { return false }
+    let local = format_in(timestamp, "America/Chicago", "%Y-%m-%dT00:00:00Z")
+    let today = unwrap(parse_iso(local))
+    let event = unwrap(parse_iso(date + "T00:00:00Z"))
+    return today >= add_days(event, -7) && today < add_days(event, 3)
+}

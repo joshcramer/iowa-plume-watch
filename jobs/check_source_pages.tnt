@@ -1,0 +1,13 @@
+import { parse_json } from "std/json"
+import { persisted_payload, store_source_watch, record_attempt } from "lib/snapshots"
+import { check_sources } from "lib/source_watch"
+
+job CheckSourcePages on source_watch (retry: 1, backoff: "exponential", timeout: 90, unique: 10800) {
+    perform() {
+        record_attempt("source-watch")
+        let previous = unwrap(parse_json(unwrap(persisted_payload("source-watch"))))
+        let result = check_sources(previous)
+        store_source_watch(result)
+        assert(len(result["fetch_errors"]) < 5)
+    }
+}

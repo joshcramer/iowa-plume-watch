@@ -1,0 +1,18 @@
+import { now } from "std/time"
+import { enqueue } from "std/jobs"
+import { last_attempt } from "lib/snapshots"
+import { in_scenario_window, official_status } from "lib/official"
+
+fn is_forecast_window(timestamp: Int) -> Bool {
+    return in_scenario_window(official_status(), timestamp)
+}
+
+fn dispatch_due() {
+    let timestamp = now()
+    if timestamp - last_attempt("forecast-metadata") >= 900 && is_forecast_window(timestamp) {
+        unwrap(enqueue("RefreshForecast", map {}))
+    }
+    if timestamp - last_attempt("source-watch") >= 10800 {
+        unwrap(enqueue("CheckSourcePages", map {}))
+    }
+}

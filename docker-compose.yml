@@ -1,0 +1,51 @@
+services:
+  app:
+    image: ${APP_IMAGE:-iowa-plume-watch:local}
+    build:
+      context: .
+      args:
+        APP_REVISION: ${APP_REVISION:-development}
+    restart: unless-stopped
+    environment:
+      NTNT_ENV: production
+      NTNT_TIMEOUT: "15"
+      NTNT_WORKERS: "2"
+      APP_DATABASE_PATH: ${APP_DATABASE_PATH:-/app/data/app.db}
+    volumes:
+      - app-data:/app/data
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=16m,uid=10001,gid=10001,mode=1770
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    networks:
+      - app-net
+
+  worker:
+    image: ${APP_IMAGE:-iowa-plume-watch:local}
+    command: ["ntnt", "run", "worker.tnt"]
+    healthcheck:
+      disable: true
+    depends_on:
+      app:
+        condition: service_healthy
+    restart: unless-stopped
+    environment:
+      NTNT_ENV: production
+      NTNT_MAX_RESPONSE_SIZE: "8000000"
+      APP_DATABASE_PATH: ${APP_DATABASE_PATH:-/app/data/app.db}
+      APP_JOBS_DATABASE_PATH: /app/data/jobs.db
+    volumes: [app-data:/app/data]
+    read_only: true
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=16m,uid=10001,gid=10001,mode=1770"]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    networks: [app-net]
+
+volumes:
+  app-data:
+
+networks:
+  app-net:

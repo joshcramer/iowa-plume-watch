@@ -1,0 +1,61 @@
+import { query_rows, execute_statement } from "lib/database"
+import { read_file } from "std/fs"
+import { parse_json, stringify } from "std/json"
+import { cwd } from "std/env"
+import { now } from "std/time"
+
+fn seed_file(name: String) -> String {
+    return unwrap(read_file(cwd() + "/seed/" + name + ".json"))
+}
+
+fn seed_data() {
+    if len(unwrap(query_rows("SELECT id FROM weather_snapshot WHERE id = 1", []))) == 0 {
+        let forecast = seed_file("forecast")
+        let extended = seed_file("extended-tracks")
+        let fetched = unwrap(parse_json(forecast))["fetched_at_utc"]
+        assert(fetched == unwrap(parse_json(extended))["source_snapshot_utc"])
+        unwrap(execute_statement("INSERT INTO weather_snapshot (id, forecast, extended, fetched_at) VALUES (1, ?, ?, ?) ON CONFLICT (id) DO NOTHING", [forecast, extended, fetched]))
+    }
+    if len(unwrap(query_rows("SELECT id FROM source_snapshot WHERE id = 1", []))) == 0 {
+        unwrap(execute_statement("INSERT INTO source_snapshot (id, payload) VALUES (1, ?) ON CONFLICT (id) DO NOTHING", [seed_file("source-watch")]))
+    }
+}
+
+// One statement publishes the matched local and regional data. A worker crash
+// before publication cannot leave a new forecast paired with old long tracks.
+fn store_weather(bundle: Map) -> Int {
+    let forecast = bundle["forecast"]
+    let extended = bundle["extended"]
+    let fetched = forecast["fetched_at_utc"]
+    assert(forecast["status"] == "forecast" && len(forecast["models"]) > 0)
+    assert(extended["source_snapshot_utc"] == fetched)
+    assert(extended["event_date"] == forecast["event_date"])
+    return unwrap(execute_statement("UPDATE weather_snapshot SET forecast = ?, extended = ?, fetched_at = ? WHERE id = 1 AND julianday(?) > julianday(fetched_at)", [stringify(forecast), stringify(extended), fetched, fetched]))
+}
+
+fn persisted_payload(name: String) -> Result<String, String> {
+    let rows = if name == "forecast" {
+        query_rows("SELECT forecast AS payload FROM weather_snapshot WHERE id = 1", [])
+    } else if name == "extended-tracks" {
+        query_rows("SELECT extended AS payload FROM weather_snapshot WHERE id = 1", [])
+    } else if name == "source-watch" {
+        query_rows("SELECT payload FROM source_snapshot WHERE id = 1", [])
+    } else { return Err("Unknown snapshot") }
+    let values = rows otherwise { return Err("Snapshot unavailable") }
+    if len(values) != 1 { return Err("Snapshot unavailable") }
+    return Ok(values[0]["payload"])
+}
+
+fn store_source_watch(payload: Map) -> Int {
+    return unwrap(execute_statement("UPDATE source_snapshot SET payload = ? WHERE id = 1", [stringify(payload)]))
+}
+
+fn last_attempt(name: String) -> Int {
+    let rows = unwrap(query_rows("SELECT attempted_at FROM job_attempts WHERE name = ?", [name]))
+    if len(rows) == 0 { return 0 }
+    return rows[0]["attempted_at"]
+}
+
+fn record_attempt(name: String) {
+    unwrap(execute_statement("INSERT INTO job_attempts (name, attempted_at) VALUES (?, ?) ON CONFLICT (name) DO UPDATE SET attempted_at = excluded.attempted_at", [name, now()]))
+}

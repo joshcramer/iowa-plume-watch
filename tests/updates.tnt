@@ -1,0 +1,39 @@
+import { next_publication, publication_targets } from "../lib/model_publications.tnt"
+import { schedule_from, official_status, in_scenario_window } from "../lib/official.tnt"
+import { parse_iso } from "std/time"
+import { ends_with } from "std/string"
+
+fn metadata(run: Int, available: Int) -> Map {
+    return map { "last_run_initialisation_time": run, "last_run_availability_time": available }
+}
+
+let old = map { "a": map { "run": 1000 }, "b": map { "run": 1000 } }
+let ready = map { "a": metadata(1500, 2800), "b": metadata(1000, 1400) }
+let changed = next_publication(["a", "b"], ready, old, 3400)
+assert(changed["a"]["run"] == 1500)
+assert(is_none(next_publication(["a", "b"], ready, old, 3399)))
+assert(is_none(next_publication(["a", "b"], ready, changed, 4200)))
+assert(is_none(next_publication(["a", "b"], ready, map { "b": map { "run": 2000 } }, 4200)))
+assert(is_none(next_publication(["a", "b"], map { "a": ready["a"] }, old, 4200)))
+
+let prior = map { "event_date": "2026-11-25", "models": map {
+    "rrfs": map { "publication_trigger": map { "ncep_rrfs_conus": map { "run": 1000 } } },
+    "gfs": map { "publication_trigger": map { "ncep_gfs013": map { "run": 1000 }, "ncep_gfs025": map { "run": 1000 } } }
+} }
+fn fake_metadata(url: String) {
+    return Ok(metadata(if ends_with(url, "ncep_rrfs_conus/static/meta.json") { 2000 } else { 1000 }, 5000))
+}
+let due = publication_targets("2026-11-25", prior, 6000, fake_metadata, fn(key) { return if key == "ecmwf" { 5000 } else { 0 } })
+assert(len(due) == 1 && due["rrfs"]["ncep_rrfs_conus"]["run"] == 2000)
+let new_date = publication_targets("2026-11-27", prior, 6000, fake_metadata, fn(key) { return 0 })
+assert(len(new_date) == 3)
+
+let live = official_status()
+assert(is_string(live["headline"]) && is_string(live["source_url"]))
+let postponed = schedule_from([map { "status": "postponed" }, live])
+assert(!in_scenario_window(postponed, unwrap(parse_iso("2026-11-24T00:00:00Z"))))
+let moved = schedule_from([map { "headline": "Monitoring notice" }, map { "status": "scheduled", "scheduled_date": "2026-12-02" }, live])
+assert(moved["scenario_date"] == "2026-12-02" && moved["archive_on"] == "2026-12-05")
+assert(in_scenario_window(moved, unwrap(parse_iso("2026-12-05T05:59:59Z"))))
+assert(!in_scenario_window(moved, unwrap(parse_iso("2026-12-05T06:00:00Z"))))
+print("PASS: model availability grace, unchanged/stale metadata, per-model retry window, and reviewed date changes")

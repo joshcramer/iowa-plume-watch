@@ -1,0 +1,25 @@
+import { get_env } from "std/env"
+
+// One home for non-secret configuration. Secrets never come from here: use
+// ntnt.toml [secrets.*] with std/secrets, or the project's renderer files.
+
+fn is_production() -> Bool {
+    let mode = get_env("NTNT_ENV") ?? ""
+    return mode == "production" || mode == "prod"
+}
+
+// Fails startup with a value-free message naming the missing setting.
+fn required_env(name: String) -> String {
+    let value = get_env(name) ?? ""
+    if value == "" { return unwrap(Err("missing required configuration: " + name)) }
+    return value
+}
+
+fn optional_env(name: String, fallback: String) -> String {
+    let value = get_env(name) ?? ""
+    return if value == "" { fallback } else { value }
+}
+
+fn site_url() -> String {
+    return optional_env("SITE_URL", "http://localhost:8080")
+}

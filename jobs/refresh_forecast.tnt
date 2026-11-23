@@ -1,0 +1,25 @@
+import { now } from "std/time"
+import { parse_json, stringify } from "std/json"
+import { in_scenario_window, official_status } from "lib/official"
+import { last_attempt, record_attempt, store_weather, persisted_payload } from "lib/snapshots"
+import { refresh_selected } from "lib/forecast_feed"
+import { live_publication_targets } from "lib/model_publications"
+
+job RefreshForecast on forecasts (retry: 0, timeout: 840, unique: 900) {
+    perform() {
+        let timestamp = now()
+        let status = official_status()
+        if in_scenario_window(status, timestamp) && timestamp - last_attempt("forecast-metadata") >= 900 {
+            record_attempt("forecast-metadata")
+            let date = status["scenario_date"]
+            let forecast = unwrap(parse_json(unwrap(persisted_payload("forecast"))))
+            let targets = live_publication_targets(date, forecast, timestamp, fn(key) { return last_attempt("weather-#{date}-#{key}") })
+            if len(targets) > 0 {
+                let extended = unwrap(parse_json(unwrap(persisted_payload("extended-tracks"))))
+                let bundle = refresh_selected(date, targets, map { "forecast": forecast, "extended": extended }, fn(key) { record_attempt("weather-#{date}-#{key}") })
+                if is_none(bundle["forecast"]) { unwrap(Err("Forecast refresh failed: " + stringify(bundle["errors"]))) }
+                store_weather(bundle)
+            }
+        }
+    }
+}

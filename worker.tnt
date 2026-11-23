@@ -1,0 +1,11 @@
+import { work_jobs } from "std/jobs"
+import { schedule } from "std/concurrent"
+import { configure_jobs } from "lib/jobs_config"
+import { dispatch_due } from "lib/dispatch"
+
+// The worker owns both dispatch and execution. The first tick also catches up
+// after a restart; persisted attempt times prevent a new fetch on each restart.
+configure_jobs()
+jobs("jobs/")
+schedule("15s", dispatch_due)
+work_jobs(map { "poll_interval": 500 })
