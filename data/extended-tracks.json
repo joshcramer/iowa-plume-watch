@@ -1,0 +1,10 @@
+{
+  "schema": 1,
+  "status": "pending",
+  "event_date": "2026-11-25",
+  "source_snapshot_utc": null,
+  "generated_at_utc": null,
+  "method": "Extended paths unavailable until first successful forecast collection.",
+  "paths": {},
+  "provider_errors": {}
+}
