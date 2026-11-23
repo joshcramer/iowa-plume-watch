@@ -32,9 +32,13 @@ jobs:
           python -m unittest discover -s tests -v
           node --test tests/*.test.mjs
       - name: Download latest GFS / RRFS / ECMWF pressure-level winds
-        if: github.event_name != 'push'
+        if: github.event_name != 'push' || contains(github.event.head_commit.message, 'enable-long-range-refresh')
         run: |
           python scripts/build_forecast.py || echo 'WARNING: Model request failed. Existing dated snapshot retained.'
+      - name: Compute extended 24/48h trajectories (global GFS and ECMWF)
+        if: github.event_name != 'push' || contains(github.event.head_commit.message, 'enable-long-range-refresh')
+        run: |
+          python scripts/build_extended.py || echo 'WARNING: Regional forecast unavailable; retain previously dated trajectories.'
       - name: Smoke-test the actual downloaded forecast trajectories
         run: node --test tests/live-forecast.test.mjs
       - name: Detect changed official source pages (unreviewed, not an alert)
@@ -42,7 +46,7 @@ jobs:
         run: |
           python scripts/watch_official_sources.py || echo 'WARNING: At least one source unavailable; statuses remain unverified.'
       - name: Save snapshots to the latest main safely
-        if: github.event_name != 'push'
+        if: github.event_name != 'push' || contains(github.event.head_commit.message, 'enable-long-range-refresh')
         shell: bash
         run: |
           set -euo pipefail
@@ -51,6 +55,7 @@ jobs:
           scratch="$(mktemp -d)"
           trap 'rm -rf "$scratch"' EXIT
           cp data/forecast.json "$scratch/forecast.json"
+          cp data/extended-tracks.json "$scratch/extended-tracks.json"
           cp data/source-watch.json "$scratch/source-watch.json"
           # A manual rerun can start from an old SHA. Always base the
           # snapshot commit on the latest main instead of force-pushing.
@@ -58,8 +63,9 @@ jobs:
             git fetch --no-tags origin main
             git reset --hard origin/main
             cp "$scratch/forecast.json" data/forecast.json
+            cp "$scratch/extended-tracks.json" data/extended-tracks.json
             cp "$scratch/source-watch.json" data/source-watch.json
-            git add data/forecast.json data/source-watch.json
+            git add data/forecast.json data/extended-tracks.json data/source-watch.json
             if git diff --cached --quiet; then
               echo "Published snapshots are already current."
               exit 0
