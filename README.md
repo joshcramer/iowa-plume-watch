@@ -2,6 +2,8 @@
 
 **Independent weather-transport screening for the November 2026 lead-azide detonation planned at the Iowa Army Ammunition Plant near Middletown, Iowa.**
 
+[**Open the live Iowa Plume Watch map**](https://iowaplumewatch.heylarri.com/). This is the project's public site. To run your own copy, see [Run locally](#run-locally).
+
 > **This project is NOT a plume, fallout, lead-exposure, dose, contamination, or public-health safety model.** A modeled wind trajectory cannot establish that an area is contaminated or safe. Check Army/EPA/state guidance and measured environmental monitoring.
 
 ## Run locally
@@ -13,7 +15,7 @@ docker compose up -d
 
 The web service and worker use the same checksum-pinned NTNT image, with a named SQLite volume. No API keys are required. The worker checks [Open-Meteo availability metadata](https://open-meteo.com/en/docs/model-updates) every 15 minutes around the scheduled scenario (seven days before through two days after, Chicago time). It downloads only newly available model data, with a 10-minute propagation buffer. The separate source-page fingerprint check runs every three hours. Requests serve local data, never call Open-Meteo, and never commit updates back to GitHub.
 
-Use `docker compose exec app curl -fsS http://localhost:8080/ready` to check storage. To access the site from a local browser, add a development Compose override binding the app port to `127.0.0.1` only. The `compose.heylarri.yml` overlay connects the preview app to the existing host ingress without publishing a port.
+Use `docker compose exec app curl -fsS http://localhost:8080/ready` to check storage. To access the site from a local browser, add a development Compose override binding the app port to `127.0.0.1` only. The `compose.heylarri.yml` overlay is for the hosted site and isn't needed locally.
 
 ## Forecast and official status
 
