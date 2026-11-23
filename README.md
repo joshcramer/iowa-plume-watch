@@ -11,15 +11,15 @@ docker compose build
 docker compose up -d
 ```
 
-The web service and worker use the same checksum-pinned NTNT image, with a named SQLite volume. No API keys are required. The worker fetches public weather data and checks source pages at three-hour intervals. Requests serve local data, never call Open-Meteo, and never commit updates back to GitHub.
+The web service and worker use the same checksum-pinned NTNT image, with a named SQLite volume. No API keys are required. The worker checks [Open-Meteo availability metadata](https://open-meteo.com/en/docs/model-updates) every 15 minutes around the scheduled scenario (seven days before through two days after, Chicago time). It downloads only newly available model data, with a 10-minute propagation buffer. The separate source-page fingerprint check runs every three hours. Requests serve local data, never call Open-Meteo, and never commit updates back to GitHub.
 
 Use `docker compose exec app curl -fsS http://localhost:8080/ready` to check storage. To access the site from a local browser, add a development Compose override binding the app port to `127.0.0.1` only. The `compose.heylarri.yml` overlay connects the preview app to the existing host ingress without publishing a port.
 
 ## Forecast and official status
 
-On a new volume, the application seeds the last verified snapshot from `seed/`. Failed forecast refreshes retain the last good version. Near-range inputs and extended tracks publish together under the same timestamp. Missing providers or levels are shown as unavailable, and truncated paths are not extrapolated. A timestamp tells you when data were fetched, not when a weather model ran. After Nov. 27 CST the worker stops requesting event forecasts and the map labels the data as archival. That is not confirmation that the operation took place.
+On a new volume, the application seeds the last verified snapshot from `seed/`. Failed forecast refreshes retain the last good version. Near-range inputs and extended tracks publish together under the same timestamp. Missing providers or levels are shown as unavailable, and truncated paths are not extrapolated. Each model has its own download timestamp. Publication metadata triggers the download but does not prove the exact model run used for every forecast hour. On the third Chicago calendar day after the scenario the worker stops requesting event forecasts and the map labels the data as archival. That is not confirmation that the operation took place.
 
-Official status is maintained separately in `seed/official-status.json`. Change it only after reviewing a direct official source and release a new image. The automated source watch only detects changes in page text; it does not classify advisories or declare an all-clear. It is not an emergency-alert system.
+Reviewed notices live in `seed/official-updates.json` (newest first) and populate the public update log and `/data/official-updates.json`. Larri’s read-only cron checks primary agency sources every two hours and drafts changes for review; it cannot publish. After verifying a notice, add a new entry with a unique `id`, publication date, review timestamp, agency, headline, summary and direct source URL. For a schedule change use `status: "scheduled"` with `scheduled_date` (`YYYY-MM-DD`) and an explicitly announced `scheduled_time`, or `null` if none was announced. For a postponement without a new date or a cancellation, set `status` and leave `scheduled_date` null. Leave `status` unset on non-schedule notices. Deploy the reviewed branch to publish the log entry. The date automatically drives the forecast request window and map labels; older paths are not shown for a new date. This is not an emergency-alert system.
 
 ## Tests
 
@@ -27,6 +27,7 @@ Official status is maintained separately in `seed/official-status.json`. Change 
 ntnt validate .
 ntnt run tests/forecast-feed.tnt
 ntnt run tests/snapshots.tnt
+ntnt run tests/updates.tnt
 node --test tests/*.test.mjs
 ```
 

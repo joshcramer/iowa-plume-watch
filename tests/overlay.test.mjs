@@ -23,8 +23,8 @@ test('elapsed time markers interpolate model positions and do not extrapolate',(
   assert.equal(pointAtElapsed(track,-1),null);
 });
 test('clock labels are relative to the hypothetical release and cross midnight',()=>{
-  assert.match(clockAt(12,4),/Nov 25, 4:00 PM CST/);
-  assert.match(clockAt(23,2),/Nov 26, 1:00 AM CST/);
+  assert.match(clockAt(12,4,'2026-11-25'),/Nov 25, 4:00 PM CT/);
+  assert.match(clockAt(23,2,'2026-12-31'),/Jan 1, 1:00 AM CT/);
 });
 
 test('time checkpoint labels are optional and no longer obscure the paths',()=>{

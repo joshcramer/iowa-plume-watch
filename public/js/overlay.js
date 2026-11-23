@@ -20,11 +20,12 @@ function svg(name,attrs={}){
   return e;
 }
 
-/** Wall-clock CST label on the fixed November 25, 2026 hypothetical release day. */
-export function clockAt(releaseHour,elapsedHours){
-  if(!finite(releaseHour)||!finite(elapsedHours))return 'Time unavailable';
-  const timestamp=Date.UTC(2026,10,25)+Math.round((releaseHour+elapsedHours)*60)*60000;
-  return new Intl.DateTimeFormat('en-US',{timeZone:'UTC',month:'short',day:'numeric',hour:'numeric',minute:'2-digit',hour12:true}).format(new Date(timestamp))+' CST';
+/** Model time labels are Chicago wall-clock hours. */
+export function clockAt(releaseHour,elapsedHours,date){
+  const day=Date.parse(`${date}T00:00:00Z`);
+  if(!finite(releaseHour)||!finite(elapsedHours)||!finite(day))return 'Time unavailable';
+  const timestamp=day+Math.round((releaseHour+elapsedHours)*60)*60000;
+  return new Intl.DateTimeFormat('en-US',{timeZone:'UTC',month:'short',day:'numeric',hour:'numeric',minute:'2-digit',hour12:true}).format(new Date(timestamp))+' CT';
 }
 /** Interpolate a 15-minute model trajectory at an arbitrary elapsed hour. */
 export function pointAtElapsed(track,h){
@@ -51,6 +52,7 @@ export function createTransportOverlay(map,reference={}){
   let elapsedHours=4;
   let releaseHour=12;
   let showTimeDots=false;
+  let scenarioDate=null;
   function draw(){
     const size=map.getSize();
     if(!size?.x||!size?.y)return;
@@ -112,7 +114,7 @@ export function createTransportOverlay(map,reference={}){
           const q=map.latLngToContainerPoint([p.lat,p.lon]);
           if(!q||!finite(q.x)||!finite(q.y))continue;
           const tick=svg('circle',{class:'hour-tick',cx:q.x,cy:q.y,r:3.2,fill:track.color||'#91dbd8',stroke:'#0b2635','stroke-width':1.4});
-          const title=svg('title');title.textContent=(track.label||'Wind')+' +'+hour+'h — '+clockAt(releaseHour,hour)+' (hypothetical)';
+          const title=svg('title');title.textContent=(track.label||'Wind')+' +'+hour+'h — '+clockAt(releaseHour,hour,scenarioDate)+' (hypothetical)';
           tick.appendChild(title);layer.appendChild(tick);
         }
       }
@@ -125,7 +127,7 @@ export function createTransportOverlay(map,reference={}){
       const g=svg('g',{class:'selected-time-marker'});
       const ring=svg('circle',{cx:mark.x,cy:mark.y,r:9.2,fill:'#ffffff',stroke:'#082535','stroke-width':3});
       const core=svg('circle',{cx:mark.x,cy:mark.y,r:5.8,fill:mark.color,stroke:'#ffffff','stroke-width':1.5});
-      const title=svg('title');title.textContent=mark.label+' selected at +'+elapsedHours+'h ('+clockAt(releaseHour,elapsedHours)+')';
+      const title=svg('title');title.textContent=mark.label+' selected at +'+elapsedHours+'h ('+clockAt(releaseHour,elapsedHours,scenarioDate)+')';
       g.append(ring,core,title);layer.appendChild(g);
     }
     function marker(p,label,fill,cls,dx=12,dy=-10){
@@ -148,6 +150,7 @@ export function createTransportOverlay(map,reference={}){
     tracks=Array.isArray(next)?next:[];
     if(finite(options.elapsedHours))elapsedHours=Math.max(0,options.elapsedHours);
     if(finite(options.releaseHour))releaseHour=options.releaseHour;
+    if(Object.hasOwn(options,'scenarioDate'))scenarioDate=options.scenarioDate;
     if(typeof options.showTimeDots==='boolean')showTimeDots=options.showTimeDots;
     draw();
   }

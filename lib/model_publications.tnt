@@ -1,0 +1,50 @@
+import { MODELS, request_once } from "lib/forecast_feed"
+
+let METADATA_BASE = "https://api.open-meteo.com/data/"
+let SETTLE_SECONDS = 600
+
+fn next_publication(feeds: Array, metadata: Map, previous: Map, timestamp: Int) {
+    let mut trigger = map {}
+    let mut changed = false
+    for feed in feeds {
+        let item = metadata[feed] ?? map {}
+        let run = item["last_run_initialisation_time"]
+        let available = item["last_run_availability_time"]
+        if !is_int(run) || !is_int(available) || run <= 0 || available < run { return None }
+        let prior = previous[feed] ?? map {}
+        let old_run = prior["run"] ?? 0
+        if run < old_run { return None }
+        if run > old_run {
+            if available > timestamp - SETTLE_SECONDS { return None }
+            changed = true
+        }
+        trigger[feed] = map { "run": run, "available": available }
+    }
+    return if changed { trigger } else { None }
+}
+
+fn publication_targets(event_date: String, previous: Map, timestamp: Int, request, attempts) -> Map {
+    let mut targets = map {}
+    for model in MODELS {
+        let key = model["key"]
+        // Failed weather downloads are retried at most hourly per model.
+        if timestamp - attempts(key) < 3600 { continue }
+        let mut metadata = map {}
+        for feed in model["feeds"] {
+            match request(METADATA_BASE + feed + "/static/meta.json") {
+                Ok(item) => { metadata[feed] = item },
+                Err(message) => { print("Open-Meteo metadata unavailable for #{feed}: #{message}") }
+            }
+        }
+        let old_models = previous["models"] ?? map {}
+        let old_model = old_models[key] ?? map {}
+        let old = if previous["event_date"] == event_date { old_model["publication_trigger"] ?? map {} } else { map {} }
+        let next = next_publication(model["feeds"], metadata, old, timestamp)
+        if !is_none(next) { targets[key] = next }
+    }
+    return targets
+}
+
+fn live_publication_targets(event_date: String, previous: Map, timestamp: Int, attempts) -> Map {
+    return publication_targets(event_date, previous, timestamp, request_once, attempts)
+}

@@ -4,8 +4,15 @@ import { parse_query } from "std/url"
 import { split, join } from "std/string"
 import { format_timestamp } from "std/time"
 import { push, slice } from "std/collections"
-import { collect_forecast_from } from "../lib/forecast_feed.tnt"
+import { refresh_selected_from } from "../lib/forecast_feed.tnt"
 import { build_forecast_paths } from "../lib/forecast_tracks.tnt"
+
+fn collect_forecast_from(request, pause) -> Map {
+    let targets = map { "gfs": map {}, "rrfs": map {}, "ecmwf": map {} }
+    let bundle = refresh_selected_from("2026-11-25", targets, map {}, request, pause, fn(key) {})
+    if is_none(bundle["forecast"]) { return unwrap(Err("No forecast models succeeded: " + stringify(bundle["errors"]))) }
+    return bundle
+}
 
 fn assert_eq(actual, expected) {
     if stringify(actual) != stringify(expected) {

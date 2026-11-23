@@ -29,6 +29,7 @@ fn store_weather(bundle: Map) -> Int {
     let fetched = forecast["fetched_at_utc"]
     assert(forecast["status"] == "forecast" && len(forecast["models"]) > 0)
     assert(extended["source_snapshot_utc"] == fetched)
+    assert(extended["event_date"] == forecast["event_date"])
     return unwrap(execute_statement("UPDATE weather_snapshot SET forecast = ?, extended = ?, fetched_at = ? WHERE id = 1 AND julianday(?) > julianday(fetched_at)", [stringify(forecast), stringify(extended), fetched, fetched]))
 }
 

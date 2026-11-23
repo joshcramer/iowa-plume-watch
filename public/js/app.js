@@ -1,22 +1,25 @@
-import {EVENT_DATE,PLANT,PLACES,ROUTE,LEVELS,integrate,sourceWind,toCompass,closestToRoute,validateSnapshot} from './trajectory.js';
-import {createTransportOverlay,clockAt} from './overlay.js?v=ntnt-2';
+import {PLANT,PLACES,ROUTE,LEVELS,integrate,sourceWind,toCompass,closestToRoute,validateSnapshot} from './trajectory.js';
+import {createTransportOverlay,clockAt} from './overlay.js?v=ntnt-4';
 import {inspectNearestTrack,formatElapsed} from './inspect.js';
 
 const el=id=>document.getElementById(id);
 // Prefer GFS’s full set of wind levels, regardless of snapshot key order.
 const MODEL_ORDER=['gfs','rrfs','ecmwf'];
-const state={snapshot:null,model:'',release:12,duration:8,enabled:new Set(LEVELS.map(x=>x.key)),layers:[],map:null,routeLayer:null,transportOverlay:null,displayTracks:[],elapsed:4,showTimeDots:false,extended:null,viewMode:'all',viewKey:'',loadError:''};
-const formatDate=(iso,withYear=false)=>iso?new Intl.DateTimeFormat('en-US',{timeZone:'America/Chicago',month:'short',day:'numeric', ...(withYear?{year:'numeric'}:{}),hour:'numeric',minute:'2-digit'}).format(new Date(iso))+' CST':'—';
+const state={scenarioDate:el('forecast').dataset.scenarioDate||null,archiveOn:el('forecast').dataset.archiveOn||null,snapshot:null,model:'',release:12,duration:8,enabled:new Set(LEVELS.map(x=>x.key)),layers:[],map:null,routeLayer:null,transportOverlay:null,displayTracks:[],elapsed:4,showTimeDots:false,extended:null,viewMode:'all',viewKey:'',loadError:''};
+const formatDate=(iso,withYear=false)=>iso?new Intl.DateTimeFormat('en-US',{timeZone:'America/Chicago',month:'short',day:'numeric', ...(withYear?{year:'numeric'}:{}),hour:'numeric',minute:'2-digit',timeZoneName:'short'}).format(new Date(iso)):'—';
+const shortDate=date=>date?new Intl.DateTimeFormat('en-US',{timeZone:'UTC',month:'short',day:'numeric'}).format(new Date(date+'T00:00:00Z')):'—';
+const chicagoToday=()=>new Intl.DateTimeFormat('sv-SE',{timeZone:'America/Chicago',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+const activeSnapshot=()=>state.scenarioDate && state.snapshot?.event_date===state.scenarioDate ? state.snapshot : null;
 const escapeText=str=>String(str??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const miles=km=>`${(km/1.609344).toFixed(1)} mi`;
 const mph=kmh=>`${(kmh/1.609344).toFixed(1)} mph`;
 let timelineTimer=null;
 function horizonTrack(model,key){
-  const near=integrate(model,key,state.release,state.duration);
+  const near=integrate(model,key,state.release,state.duration,state.scenarioDate);
   if(state.duration<=8)return near;
   const extended=state.extended;
   if(extended?.status==='extended-trajectory' &&
-     extended?.source_snapshot_utc===state.snapshot?.fetched_at_utc){
+     extended.event_date===state.scenarioDate && extended.source_snapshot_utc===state.snapshot?.fetched_at_utc){
     const candidate=extended.paths?.[state.model]?.[String(state.release)]?.[key];
     if(candidate?.points?.length>=2 && Number.isFinite(candidate.hours_reached)){
       return {...candidate,points:candidate.points.filter(p=>p.h<=state.duration+1e-7),
@@ -36,9 +39,9 @@ function updateTimeline(){
   if(!control)return;
   control.max=String(state.duration);
   control.value=String(state.elapsed);
-  control.setAttribute('aria-valuetext',`+${state.elapsed} hours; ${clockAt(state.release,state.elapsed)}`);
+  control.setAttribute('aria-valuetext',`+${state.elapsed} hours; ${clockAt(state.release,state.elapsed,state.scenarioDate)}`);
   const value=state.elapsed===Math.round(state.elapsed)?state.elapsed.toFixed(0):state.elapsed.toFixed(2).replace(/0$/,'');
-  el('timeline-clock').textContent=`+${value}h · ${clockAt(state.release,state.elapsed)}`;
+  el('timeline-clock').textContent=`+${value}h · ${clockAt(state.release,state.elapsed,state.scenarioDate)}`;
   const marks=[0];
   for(let i=2;i<state.duration;i+=2)marks.push(i);
   if(marks.at(-1)!==state.duration)marks.push(state.duration);
@@ -98,7 +101,7 @@ function createHoverInspector(map){
     if(!hit){hide();return;}
     const color=String(hit.color||'#a1e7df');
     const distance=miles(hit.pathDistanceKm),fromOrigin=miles(hit.directDistanceKm);
-    const when=clockAt(state.release,hit.elapsedHours);
+    const when=clockAt(state.release,hit.elapsedHours,state.scenarioDate);
     const future=hit.elapsedHours>state.elapsed+.05;
     panel.innerHTML=
       '<div class="inspect-heading"><span class="inspect-dot" ></span>'+
@@ -192,25 +195,29 @@ function renderLevelControls(model){
     note.textContent=note.hidden?'':'Not provided';
   }
 }
-function scenarioArchived(){return Date.now()>=Date.parse('2026-11-28T06:00:00Z');}
+function scenarioArchived(){return Boolean(state.archiveOn && chicagoToday()>=state.archiveOn);}
 function statusClass(snapshot){
   if(snapshot?.status!=='forecast'||!snapshot.fetched_at_utc)return ['Awaiting forecast','pending'];
-  const age=(Date.now()-new Date(snapshot.fetched_at_utc).getTime())/3600000;
+  const age=(Date.now()-new Date(snapshot.models?.[state.model]?.fetched_at_utc||snapshot.fetched_at_utc).getTime())/3600000;
   if(scenarioArchived())return ['Archived forecast','archive'];
   if(age>9)return ['Stale forecast · check timestamp','stale'];
   return ['Forecast inputs available','live'];
 }
 function renderHeader(){
-  const s=state.snapshot;
+  const s=activeSnapshot();
+  const fetched=s?.models?.[state.model]?.fetched_at_utc||s?.fetched_at_utc;
   const count=Object.keys(s?.models||{}).length;
   const [label,kind]=statusClass(s);
   el('forecast-badge').textContent=label;
   el('forecast-badge').dataset.kind=kind;
   el('model-count').textContent=count?String(count):'0';
-  el('updated-at').textContent=s?.fetched_at_utc?formatDate(s.fetched_at_utc):'Pending';
-  el('updated-foot').textContent=s?.fetched_at_utc?'Weather data fetched (not a verified model initialization cycle)':'Waiting for a successful forecast check';
-  el('map-label').textContent=`Nov 25 · ${state.release===12?'Hypothetical noon':state.release<12?`${state.release}:00 a.m.`:`${state.release-12}:00 p.m.`} release`;
-  const issue=state.loadError || (kind==='stale'?'The last successful weather fetch is more than nine hours old. Treat paths as outdated until the forecast collector completes again.':'');
+  el('updated-at').textContent=fetched?formatDate(fetched):'Pending';
+  el('updated-foot').textContent=fetched?'Selected model download time, not model initialization':'Waiting for forecast data for this scenario';
+  const day=shortDate(state.scenarioDate);
+  el('event-date').textContent=day;
+  el('release-date').textContent=state.scenarioDate?`${day} · CT`:'Central time';
+  el('map-label').textContent=state.scenarioDate?`${day} · ${state.release===12?'Hypothetical noon':state.release<12?`${state.release}:00 a.m.`:`${state.release-12}:00 p.m.`} release`:'No verified scenario date';
+  const issue=state.loadError || (!s && state.snapshot?'No wind forecast is available for the current scenario. Paths from the earlier date are not shown.':kind==='stale'?'This model’s last download is more than nine hours old. Its paths may be outdated.':'');
   el('error-message').hidden=!issue;
   el('error-message').textContent=issue;
 }
@@ -218,13 +225,13 @@ function render(){
   renderHeader();
   for(const l of state.layers){try{state.map?.removeLayer(l);}catch{}}
   state.layers=[];
-  const model=state.snapshot?.models?.[state.model];
+  const model=activeSnapshot()?.models?.[state.model];
   renderLevelControls(model);
   const overlayStatus=el('overlay-status');
   if(!model){
     state.displayTracks=[];
     state.hoverInspector?.hide();
-    state.transportOverlay?.setTracks([],{elapsedHours:state.elapsed,releaseHour:state.release,showTimeDots:state.showTimeDots});
+    state.transportOverlay?.setTracks([],{scenarioDate:state.scenarioDate,elapsedHours:state.elapsed,releaseHour:state.release,showTimeDots:state.showTimeDots});
     updateTimeline();
     overlayStatus.textContent=state.loadError ? `Overlay unavailable: ${state.loadError}` : 'Awaiting live wind paths. No forecast overlay is displayed.';el('route-distance').textContent='Unavailable';el('model-readout').textContent='No live forecast from a validated model is available. The static reference diagrams below remain non-live, illustrative analyses.';el('wind-rows').innerHTML='<div class="empty-winds">No verified numerical upper-air winds loaded yet.</div>';return;}
   const metrics=[];
@@ -232,7 +239,7 @@ function render(){
   const displayPaths=[];
   const displayTracks=[];
   for(const level of LEVELS){
-    const forecast=sourceWind(model,level.key,state.release);
+    const forecast=sourceWind(model,level.key,state.release,state.scenarioDate);
     const traj=horizonTrack(model,level.key);
     if(!forecast){winds.push(`<div class="wind-row"><div><strong>${escapeText(level.label)}</strong></div><div>${model.available_levels.includes(level.key)?'Unavailable at this time':'Not provided'}</div><div>—</div></div>`);continue;}
     const towards=(forecast.comingFrom+180)%360;
@@ -247,7 +254,7 @@ function render(){
   }
   state.displayTracks=displayTracks;
   state.hoverInspector?.hide();
-  state.transportOverlay?.setTracks(displayTracks,{elapsedHours:state.elapsed,releaseHour:state.release,showTimeDots:state.showTimeDots});
+  state.transportOverlay?.setTracks(displayTracks,{scenarioDate:state.scenarioDate,elapsedHours:state.elapsed,releaseHour:state.release,showTimeDots:state.showTimeDots});
   updateTimeline();
   el('wind-rows').innerHTML=winds.join('');
   if(metrics.length){
@@ -297,30 +304,40 @@ async function loadForecast(){
     validateSnapshot(snapshot);
     state.snapshot=snapshot;
     state.loadError='';
-    const names=[...MODEL_ORDER,...Object.keys(snapshot.models).filter(key=>!MODEL_ORDER.includes(key))]
-      .filter(key=>Object.hasOwn(snapshot.models,key));
-    const selection=el('model-select');
-    selection.replaceChildren(...names.map(key=>{
-      const opt=document.createElement('option');opt.value=key;opt.textContent=snapshot.models[key].name;return opt;
-    }));
-    state.model=names.includes(state.model)?state.model:names[0];
-    selection.value=state.model;
+    updateModelOptions();
     safeRender();
   }catch(err){
-    state.loadError=`Forecast unavailable: ${err.message}. Check the published data/forecast.json, network connection, and developer console.`;
+    state.loadError=`Forecast unavailable: ${err.message}.`;
     state.snapshot=null;
     state.viewKey='';
+    updateModelOptions();
     safeRender();
   }
 }
+function updateModelOptions(){
+  const models=activeSnapshot()?.models??{};
+  const names=[...MODEL_ORDER,...Object.keys(models).filter(key=>!MODEL_ORDER.includes(key))]
+    .filter(key=>Object.hasOwn(models,key));
+  const selection=el('model-select');
+  selection.disabled=names.length===0;
+  selection.replaceChildren(...(names.length?names.map(key=>new Option(models[key].name,key)):[new Option('No model data yet','')]));
+  if(names.length && !names.includes(state.model))state.model=names[0];
+  selection.value=selection.disabled?'':state.model;
+}
 async function loadOfficial(){
   try{
-    const r=await fetch('/data/official-status.json',{cache:'no-store'}),s=await r.json();
-    el('official-heading').textContent=s.scheduled_date?'Scheduled · '+s.scheduled_date:'Official update pending';
-    el('official-text').textContent=s.headline||'No current status verified';
+    const r=await fetch('/data/official-status.json',{cache:'no-store'});
+    if(!r.ok)throw Error(`HTTP ${r.status}`);
+    const s=await r.json();
+    const changed=state.scenarioDate!==(s.scenario_date||null);
+    state.scenarioDate=s.scenario_date||null;
+    state.archiveOn=s.archive_on||null;
+    el('official-heading').textContent=s.scenario_date?new Intl.DateTimeFormat('en-US',{timeZone:'UTC',weekday:'long',month:'long',day:'numeric'}).format(new Date(s.scenario_date+'T00:00:00Z')):(s.headline||'No verified date');
+    el('official-text').textContent=s.summary||'No current schedule verified.';
     el('official-link').href=s.source_url||'https://www.army.mil/asc';
-    el('official-reviewed').textContent=s.last_verified_note||'Manual verification required';
-  }catch{el('official-reviewed').textContent='Official status file could not be loaded';}
+    el('official-reviewed').textContent=s.published_date?`Agency notice published ${shortDate(s.published_date)}${s.reviewed_at_utc?' · Reviewed '+formatDate(s.reviewed_at_utc):''}`:'No reviewed notice';
+    if(changed){pauseTimeline();updateModelOptions();safeRender();}
+  }catch{el('official-reviewed').textContent='Could not recheck the last reviewed notice';}
   try{
     const r=await fetch('/data/source-watch.json',{cache:'no-store'}),s=await r.json();
     const updated=Array.isArray(s.changed_on_this_check)?s.changed_on_this_check:[];

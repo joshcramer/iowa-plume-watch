@@ -3,6 +3,13 @@ import { chromium } from 'playwright';
 
 const origin=process.env.APP_URL || 'http://127.0.0.1:8080';
 const browser = await chromium.launch({headless:true,args:['--no-sandbox']});
+// CI boots from the dated weather fixture, not a live download for a future notice.
+async function matchSeedScenario(page){
+  if(process.env.PLUME_SEED_SCENARIO!=='1')return;
+  const snapshot=await page.request.get(`${origin}/data/forecast.json`).then(r=>r.json());
+  await page.route('**/data/official-status.json',route=>route.fulfill({json:{scenario_date:snapshot.event_date}}));
+}
+
 const page = await browser.newPage({viewport:{width:1280,height:950},deviceScaleFactor:1});
 // Do not let JSON key order decide which weather model opens first.
 await page.route('**/data/forecast.json', async route=>{
@@ -14,11 +21,16 @@ await page.route('**/data/forecast.json', async route=>{
 const errors=[];
 page.on('pageerror',e=>errors.push(e.message));
 try {
+  await matchSeedScenario(page);
   await page.goto(`${origin}/`,{waitUntil:'domcontentloaded',timeout:30000});
   await page.waitForFunction(
     () => document.querySelectorAll('.wind-path-svg .forecast-path').length >= 2,
     null,{timeout:25000}
   );
+  const reviewed=await page.request.get(`${origin}/data/official-updates.json`).then(r=>r.json());
+  assert.ok(reviewed.entries.length>0,'Public update log should have reviewed notices');
+  assert.equal(await page.locator('#official-update-log li').count(),reviewed.entries.length);
+  assert.equal(await page.locator('#official-update-log li a').first().getAttribute('href'),reviewed.entries[0].source_url);
   // Guard against CSS SRI failures: Leaflet JS can work while its CSS is
   // silently rejected, which makes OSM tiles flow outside the map.
   await page.waitForFunction(()=>document.querySelector('#map img.leaflet-tile'),null,{timeout:15000});
@@ -69,12 +81,12 @@ try {
   assert.ok(await page.locator('.wind-path-svg .hour-tick').count()>0,'Optional time checkpoints appear');
   await page.locator('#time-dots-toggle').uncheck();
   assert.equal(await page.locator('#timeline-slider').inputValue(),'4');
-  assert.match(await page.locator('#timeline-clock').textContent(),/\+4h.*Nov 25.*4:00 PM CST/);
+  assert.match(await page.locator('#timeline-clock').textContent(),/\+4h.*Nov 25.*4:00 PM CT/);
   const markerBefore=await page.locator('.wind-path-svg .selected-time-marker').first().locator('circle').first().getAttribute('cx');
   await page.locator('#timeline-slider').fill('2');
   const markerAfter=await page.locator('.wind-path-svg .selected-time-marker').first().locator('circle').first().getAttribute('cx');
   assert.notEqual(markerBefore,markerAfter,'Scrubber must move selected time position on forecast lines');
-  assert.match(await page.locator('#timeline-clock').textContent(),/\+2h.*2:00 PM CST/);
+  assert.match(await page.locator('#timeline-clock').textContent(),/\+2h.*2:00 PM CT/);
   await page.locator('#timeline-slider').fill('4');
 
   // Hover inspection at the mid-point of a visible active trajectory.
@@ -89,7 +101,7 @@ try {
   await page.waitForFunction(()=>document.querySelector('#track-inspect')?.hidden===false,null,{timeout:10000});
   const inspected=await page.locator('#track-inspect').textContent();
   assert.match(inspected,/modeled path|modeled air parcel/i,'Hover inspector must explain meaning');
-  assert.match(inspected,/CST/,'Hover inspector must show event-local clock time');
+  assert.match(inspected,/CT/,'Hover inspector must show event-local clock time');
   assert.match(inspected, /\+\d+h/,'Hover inspector must show elapsed time');
   await page.locator('#map').screenshot({path:'browser-hover-inspect.png'});
   await page.mouse.move(25,25);
@@ -136,7 +148,7 @@ try {
     await page.selectOption('#release-select','12');
     await page.selectOption('#horizon-select','48');
     assert.equal(await page.locator('#timeline-slider').getAttribute('max'),'48');
-    assert.match(await page.locator('#timeline-clock').textContent(),/Nov 27.*12:00 PM CST/);
+    assert.match(await page.locator('#timeline-clock').textContent(),/Nov 27.*12:00 PM CT/);
     const pCount=await page.locator('.wind-path-svg .forecast-path').count();
     assert.ok(pCount>=3,'Extended GFS must have multiple 48h paths');
     const warning=await page.locator('#long-range-warning').textContent();
@@ -145,6 +157,7 @@ try {
   }
     const mobile=await browser.newPage({viewport:{width:390,height:844},deviceScaleFactor:1});
   try{
+    await matchSeedScenario(mobile);
     await mobile.goto(`${origin}/`,{waitUntil:'domcontentloaded'});
     await mobile.waitForFunction(()=>document.querySelector('.forecast-path'),null,{timeout:25000});
     const mobileLayout=await mobile.evaluate(()=>({top:document.querySelector('#map').getBoundingClientRect().top, width:document.documentElement.clientWidth, scroll:document.documentElement.scrollWidth}));

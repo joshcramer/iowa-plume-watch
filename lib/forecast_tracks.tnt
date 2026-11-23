@@ -162,8 +162,8 @@ fn integrate_level(near: Map, far, level: String, midnight: Int) -> Map {
 }
 
 export fn build_forecast_paths(event_date: String, models: Map, regional: Map) -> Map {
-    // Use UTC only as a sortable clock for Chicago labels. This fixed November
-    // window does not cross a daylight-saving transition. No zone conversion.
+    // Use UTC only as a sortable clock for Chicago wall-clock labels. The
+    // collector rejects duplicated hourly labels (e.g. at fall-back).
     let midnight = unwrap(parse_iso(event_date + "T00:00:00Z"))
     let mut paths = map {}
     for key in keys(models) {

@@ -6,21 +6,19 @@ import { join } from "std/string"
 import { now, to_iso, parse_iso } from "std/time"
 import { is_finite } from "std/math"
 import { sleep_ms } from "std/concurrent"
-import { push, includes } from "std/collections"
+import { push, includes, keys } from "std/collections"
 import { build_forecast_paths } from "./forecast_tracks.tnt"
+import { date_offset } from "./official.tnt"
 
-let EVENT_DATE = "2026-11-25"
-let LOCAL_END_DATE = "2026-11-26"
-let REGIONAL_END_DATE = "2026-11-27"
 let TIMEZONE = "America/Chicago"
 let LEVELS = ["10m", "80m", "925hPa", "850hPa"]
 let GFS_ENDPOINT = "https://api.open-meteo.com/v1/gfs"
 let ECMWF_ENDPOINT = "https://api.open-meteo.com/v1/ecmwf"
 let SOURCES = ["https://open-meteo.com/en/docs/gfs-api", "https://open-meteo.com/en/docs/ecmwf-api"]
-let MODELS = [
-    map { "key": "gfs", "name": "NOAA GFS", "endpoint": GFS_ENDPOINT, "id": "ncep_gfs_global", "levels": LEVELS, "regional": true },
-    map { "key": "rrfs", "name": "NOAA RRFS CONUS", "endpoint": GFS_ENDPOINT, "id": "ncep_rrfs_conus", "levels": LEVELS, "regional": false },
-    map { "key": "ecmwf", "name": "ECMWF IFS 0.25°", "endpoint": ECMWF_ENDPOINT, "id": "ecmwf_ifs025", "levels": ["10m", "925hPa", "850hPa"], "regional": true }
+export let MODELS = [
+    map { "key": "gfs", "name": "NOAA GFS", "endpoint": GFS_ENDPOINT, "id": "ncep_gfs_global", "feeds": ["ncep_gfs013", "ncep_gfs025"], "levels": LEVELS, "regional": true },
+    map { "key": "rrfs", "name": "NOAA RRFS CONUS", "endpoint": GFS_ENDPOINT, "id": "ncep_rrfs_conus", "feeds": ["ncep_rrfs_conus"], "levels": LEVELS, "regional": false },
+    map { "key": "ecmwf", "name": "ECMWF IFS 0.25°", "endpoint": ECMWF_ENDPOINT, "id": "ecmwf_ifs025", "feeds": ["ecmwf_ifs025"], "levels": ["10m", "925hPa", "850hPa"], "regional": true }
 ]
 let LOCAL_GRID = map {
     "lats": [38.2, 38.75, 39.3, 39.85, 40.4, 40.95, 41.5, 42.05, 42.6],
@@ -32,7 +30,7 @@ let REGIONAL_GRID = map {
     "resolution_deg": 2
 }
 
-fn request_once(url: String) {
+export fn request_once(url: String) {
     let response = match fetch(url, map {
         "timeout": 35, "redirect": "error",
         "headers": map { "User-Agent": "iowa-plume-watch/1.0 public-research", "Accept": "application/json" }
@@ -75,8 +73,8 @@ fn valid_wind(value, direction: Bool) -> Bool {
     return number >= 0.0 && (!direction || number <= 360.0)
 }
 
-fn validate_times(times: Array, required_last: String) {
-    if len(times) < 25 || !includes(times, EVENT_DATE + "T12:00") || !includes(times, required_last) {
+fn validate_times(times: Array, event_date: String, required_last: String) {
+    if len(times) < 25 || !includes(times, event_date + "T12:00") || !includes(times, required_last) {
         return Err("Missing intended hourly scenario window")
     }
     let mut previous = 0
@@ -89,13 +87,13 @@ fn validate_times(times: Array, required_last: String) {
     return Ok(true)
 }
 
-fn project_hours(entry, levels: Array, axis: String, required_last: String) {
+fn project_hours(entry, levels: Array, axis: String, event_date: String, required_last: String) {
     if !is_map(entry) || !is_map(entry["hourly"]) { return Err("Missing hourly data") }
     let hourly = entry["hourly"]
     let times = hourly["time"]
     if !is_array(times) { return Err("Missing hourly time axis") }
     if axis == "" {
-        match validate_times(times, required_last) {
+        match validate_times(times, event_date, required_last) {
             Ok(_) => {},
             Err(message) => { return Err(message) }
         }
@@ -117,8 +115,8 @@ fn project_hours(entry, levels: Array, axis: String, required_last: String) {
     return Ok(projected)
 }
 
-fn load_grid(model: Map, grid: Map, regional: Bool, request, pause) {
-    let end = if regional { REGIONAL_END_DATE } else { LOCAL_END_DATE }
+fn load_grid(model: Map, grid: Map, regional: Bool, event_date: String, request, pause) {
+    let end = date_offset(event_date, if regional { 2 } else { 1 })
     let required_last = if regional { end + "T15:00" } else { end + "T06:00" }
     let batch_limit = if regional { 12 } else { 9 }
     let levels = model["levels"]
@@ -133,6 +131,7 @@ fn load_grid(model: Map, grid: Map, regional: Bool, request, pause) {
     let count = len(lats) * width
     let mut locations = []
     let mut axis = ""
+    let mut usable = false
     let mut start = 0
     while start < count {
         let stop = min(start + batch_limit, count)
@@ -145,7 +144,7 @@ fn load_grid(model: Map, grid: Map, regional: Bool, request, pause) {
         let query = build_query(map {
             "latitude": join(batch_lats, ","), "longitude": join(batch_lons, ","),
             "hourly": join(fields, ","), "models": model["id"],
-            "start_date": EVENT_DATE, "end_date": end, "timezone": TIMEZONE,
+            "start_date": event_date, "end_date": end, "timezone": TIMEZONE,
             "wind_speed_unit": "kmh", "cell_selection": "nearest"
         })
         let result = match request(model["endpoint"] + "?" + query) {
@@ -155,11 +154,20 @@ fn load_grid(model: Map, grid: Map, regional: Bool, request, pause) {
         let batch = if is_array(result) { result } else { [result] }
         if len(batch) != stop - start { return Err("Unexpected Open-Meteo location count") }
         for i in start..stop {
-            let hourly = match project_hours(batch[i - start], levels, axis, required_last) {
+            let hourly = match project_hours(batch[i - start], levels, axis, event_date, required_last) {
                 Ok(value) => value,
                 Err(message) => { return Err(message) }
             }
             if axis == "" { axis = stringify(hourly["time"]) }
+            if !regional && !usable {
+                let times = hourly["time"]
+                for h in 0..len(times) {
+                    if times[h] == event_date + "T12:00" && !is_none(hourly["wind_speed_10m"][h]) && !is_none(hourly["wind_direction_10m"][h]) {
+                        usable = true
+                        break
+                    }
+                }
+            }
             locations = push(locations, map {
                 "requested_lat": lats[i / width], "requested_lon": lons[i % width], "hourly": hourly
             })
@@ -167,58 +175,80 @@ fn load_grid(model: Map, grid: Map, regional: Bool, request, pause) {
         start = stop
         pause(if regional { 500 } else { 200 })
     }
+    if !regional && !usable { return Err("No usable local winds for the scenario") }
     return Ok(map { "grid": grid, "locations": locations })
 }
 
-// Request and pacing seams permit offline replay of entire provider batches.
-export fn collect_forecast_from(request, pause) -> Map {
+// Keep the last validated grid and its matched paths when a provider fails or
+// has no new release. On a new date nothing is carried forward.
+export fn refresh_selected_from(event_date: String, targets: Map, previous: Map, request, pause, before_model) -> Map {
     let started = to_iso(now())
-    let mut local = map {}
-    let mut errors = map {}
+    let prior_forecast = previous["forecast"] ?? map {}
+    let prior_extended = previous["extended"] ?? map {}
+    let same_date = prior_forecast["event_date"] == event_date && prior_extended["event_date"] == event_date
+        && prior_extended["source_snapshot_utc"] == prior_forecast["fetched_at_utc"]
+    let mut local = if same_date { prior_forecast["models"] } else { map {} }
+    let mut paths = if same_date { prior_extended["paths"] } else { map {} }
+    let mut errors = if same_date { prior_forecast["provider_errors"] ?? map {} } else { map {} }
+    let mut regional_errors = if same_date { prior_extended["provider_errors"] ?? map {} } else { map {} }
+    let mut refreshed = false
     for model in MODELS {
         let key = model["key"]
-        match load_grid(model, LOCAL_GRID, false, request, pause) {
+        if is_none(targets[key]) { continue }
+        before_model(key)
+        match load_grid(model, LOCAL_GRID, false, event_date, request, pause) {
             Ok(grid) => {
                 let times = grid["locations"][0]["hourly"]["time"]
-                local[key] = map {
+                let near = map {
                     "name": model["name"], "model_id": model["id"], "provider": "Open-Meteo",
                     "endpoint": model["endpoint"], "available_levels": model["levels"], "fetched_at_utc": to_iso(now()),
                     "grid": grid["grid"], "locations": grid["locations"],
-                    "time_start": times[0], "time_end": times[len(times) - 1]
+                    "time_start": times[0], "time_end": times[len(times) - 1], "publication_trigger": targets[key]
                 }
+                let mut regional = map {}
+                if !is_none(regional_errors[key]) { regional_errors = delete_key(regional_errors, key) }
+                if model["regional"] {
+                    match load_grid(model, REGIONAL_GRID, true, event_date, request, pause) {
+                        Ok(far) => { regional[key] = far },
+                        Err(message) => { regional_errors[key] = message }
+                    }
+                }
+                let mut single = map {}
+                single[key] = near
+                paths[key] = build_forecast_paths(event_date, single, regional)[key]
+                local[key] = near
+                if !is_none(errors[key]) { errors = delete_key(errors, key) }
+                refreshed = true
             },
             Err(message) => { errors[key] = message }
         }
     }
-    if len(local) == 0 { return unwrap(Err("No forecast models succeeded: " + stringify(errors))) }
+    if !refreshed { return map { "errors": errors } }
     let forecast = map {
-        "schema": 1, "status": "forecast", "event_date": EVENT_DATE, "timezone": TIMEZONE,
+        "schema": 1, "status": "forecast", "event_date": event_date, "timezone": TIMEZONE,
         "fetched_at_utc": started,
         "description": "Fixed-level 2D trajectory screening; no validated dispersion, deposition or exposure estimate",
         "levels": LEVELS, "models": local, "provider_errors": errors, "data_sources": SOURCES
     }
 
-    let mut regional = map {}
-    let mut regional_errors = map {}
-    for model in MODELS {
-        let key = model["key"]
-        if model["regional"] && !is_none(local[key]) {
-            match load_grid(model, REGIONAL_GRID, true, request, pause) {
-                Ok(grid) => { regional[key] = grid },
-                Err(message) => { regional_errors[key] = message }
-            }
-        }
-    }
     let extended = map {
-        "schema": 1, "status": "extended-trajectory", "event_date": EVENT_DATE,
+        "schema": 1, "status": "extended-trajectory", "event_date": event_date,
         "source_snapshot_utc": started, "generated_at_utc": to_iso(now()), "regional_grid": REGIONAL_GRID,
         "method": "15-minute RK2; fine-grid first; coarse 2-degree regional wind interpolation after leaving local grid; no vertical coupling, deposition or lead concentrations",
-        "paths": build_forecast_paths(EVENT_DATE, local, regional), "provider_errors": regional_errors,
+        "paths": paths, "provider_errors": regional_errors,
         "data_sources": SOURCES
     }
     return map { "forecast": forecast, "extended": extended }
 }
 
-export fn collect_forecast() -> Map {
-    return collect_forecast_from(request_json, sleep_ms)
+fn delete_key(values: Map, key: String) -> Map {
+    let mut result = map {}
+    for item in keys(values) {
+        if item != key { result[item] = values[item] }
+    }
+    return result
+}
+
+export fn refresh_selected(event_date: String, targets: Map, previous: Map, before_model) -> Map {
+    return refresh_selected_from(event_date, targets, previous, request_json, sleep_ms, before_model)
 }

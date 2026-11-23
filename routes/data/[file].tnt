@@ -1,5 +1,7 @@
 import { response, not_found } from "std/http/server"
+import { stringify } from "std/json"
 import { persisted_payload, seed_file } from "lib/snapshots"
+import { official_status } from "lib/official"
 
 fn reply(code: Int, body: String) {
     return response(code, map {
@@ -10,7 +12,8 @@ fn reply(code: Int, body: String) {
 
 fn get(req) {
     let file = req.params["file"]
-    if file == "official-status.json" { return reply(200, seed_file("official-status")) }
+    if file == "official-status.json" { return reply(200, stringify(official_status())) }
+    if file == "official-updates.json" { return reply(200, seed_file("official-updates")) }
     let name = if file == "forecast.json" { "forecast" }
         else if file == "extended-tracks.json" { "extended-tracks" }
         else if file == "source-watch.json" { "source-watch" }

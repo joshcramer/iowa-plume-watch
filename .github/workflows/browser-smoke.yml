@@ -23,6 +23,7 @@ jobs:
           docker run --rm --network none --read-only --tmpfs /tmp:rw,uid=10001,gid=10001,mode=1770 \
             -v "$PWD/tests:/app/tests:ro" -e APP_DATABASE_PATH=/tmp/snapshots.db --entrypoint ntnt plume-check run tests/snapshots.tnt
           docker run --rm --network none -v "$PWD/tests:/app/tests:ro" --entrypoint ntnt plume-check run tests/forecast-feed.tnt
+          docker run --rm --network none -v "$PWD/tests:/app/tests:ro" --entrypoint ntnt plume-check run tests/updates.tnt
           node --test tests/*.test.mjs
       - name: Start cold image and test the interactive map
         run: |
@@ -36,7 +37,7 @@ jobs:
           curl -fsS http://127.0.0.1:8080/data/forecast.json >/dev/null
           npm install --no-save playwright
           npx playwright install --with-deps chromium
-          node tests/browser-smoke.mjs
+          PLUME_SEED_SCENARIO=1 node tests/browser-smoke.mjs
       - name: Print logs if a check fails
         if: failure()
         run: docker logs plume-ci

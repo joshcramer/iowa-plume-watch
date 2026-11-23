@@ -18,7 +18,7 @@ The collector requests valid hourly forecast times for Nov. 25–26, 2026 in the
 
 Pressure is NOT height. Atmospheric 925 and 850 hPa pressure surfaces vary in elevation with weather, and are often roughly 0.8 km and 1.5 km above mean sea level, respectively. Ground at the plant is already elevated above sea level. A trajectory fixed at 850 hPa is not the 3-D trajectory of a plume that starts on the ground and rises through the atmosphere.
 
-`fetched_at_utc` records *download time*, not an independently validated model-run initialization time. Valid-times reported by the API are preserved in each point's time array. A provider may update or revise forecasts; the latest fetch overwrites the previous snapshot. The last confirmed snapshot is retained on the deployment’s data volume; runtime refreshes are not Git commits.
+`fetched_at_utc` records *download time*, not an independently validated model-run initialization time. Valid-times reported by the API are preserved in each point's time array. Open-Meteo availability metadata triggers a refresh only for the model that has a newly published run. The metadata is a scheduling signal, not an attestation of the input run for each hour. Unchanged models retain their own timestamps and matched tracks. The last confirmed snapshot is retained on the deployment’s data volume; runtime refreshes are not Git commits.
 
 ## Wind vectors and motion
 
