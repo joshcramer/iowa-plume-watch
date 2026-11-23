@@ -7,6 +7,7 @@ on:
     - cron: '17 */3 * * *'
   workflow_dispatch:
 permissions:
+  actions: read
   contents: write
   pages: write
   id-token: write
@@ -14,11 +15,8 @@ concurrency:
   group: pages
   cancel-in-progress: false
 jobs:
-  update-and-publish:
+  build-and-upload:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deploy.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -39,19 +37,67 @@ jobs:
       - name: Detect changed official source pages (unreviewed, not an alert)
         run: |
           python scripts/watch_official_sources.py || echo 'WARNING: At least one source unavailable; statuses remain unverified.'
-      - name: Save snapshots to repository
+      - name: Save snapshots to the latest main safely
+        shell: bash
         run: |
+          set -euo pipefail
           git config user.name 'iowa-plume-watch[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add data/forecast.json data/source-watch.json
-          if ! git diff --cached --quiet; then
+          scratch="$(mktemp -d)"
+          trap 'rm -rf "$scratch"' EXIT
+          cp data/forecast.json "$scratch/forecast.json"
+          cp data/source-watch.json "$scratch/source-watch.json"
+          # A manual rerun can start from an old SHA. Always base the
+          # snapshot commit on the latest main instead of force-pushing.
+          for attempt in 1 2 3; do
+            git fetch --no-tags origin main
+            git reset --hard origin/main
+            cp "$scratch/forecast.json" data/forecast.json
+            cp "$scratch/source-watch.json" data/source-watch.json
+            git add data/forecast.json data/source-watch.json
+            if git diff --cached --quiet; then
+              echo "Published snapshots are already current."
+              exit 0
+            fi
             git commit -m 'data: refresh forecast inputs and source-change watch'
-            git push origin HEAD:main
-          fi
+            if git push origin HEAD:main; then
+              echo "Published snapshots updated."
+              exit 0
+            fi
+            echo "Concurrent update; retrying against the newest main (attempt $attempt)."
+            sleep 2
+          done
+          echo "::error::Could not update snapshots after 3 attempts"
+          exit 1
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
           path: .
+  deploy:
+    needs: build-and-upload
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Confirm GitHub API can see the uploaded Pages artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          # GitHub's artifact index can lag a successful upload briefly.
+          for attempt in $(seq 1 15); do
+            found="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/artifacts" --jq '[.artifacts[] | select(.name == "github-pages" and .expired == false)] | length' 2>/dev/null || echo 0)"
+            if [[ "$found" =~ ^[0-9]+$ ]] && [ "$found" -gt 0 ]; then
+              echo "GitHub Pages artifact is visible."
+              exit 0
+            fi
+            echo "Waiting for Pages artifact registration (attempt $attempt of 15)"
+            sleep 4
+          done
+          echo "::error::GitHub has not indexed the uploaded Pages artifact"
+          exit 1
       - name: Deploy to GitHub Pages
-        id: deploy
+        id: deployment
         uses: actions/deploy-pages@v4
