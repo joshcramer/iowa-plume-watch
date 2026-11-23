@@ -11,9 +11,20 @@ function makeMap(){
   if(typeof L==='undefined'){el('map-fallback').hidden=false;return;}
   const map=L.map('map',{zoomControl:false,scrollWheelZoom:false,preferCanvas:true}).setView([41.30,-91.35],8);
   L.control.zoom({position:'bottomright'}).addTo(map);
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{
-    maxZoom:17,attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
-  }).addTo(map);
+  // OpenStreetMap Standard requires no API key. Only visible tiles are requested.
+  const baseTiles=L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{
+    maxZoom:19,
+    attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>'
+  });
+  let consecutiveTileErrors=0;
+  baseTiles.on('tileload',()=>{consecutiveTileErrors=0;el('map-fallback').hidden=true;});
+  baseTiles.on('tileerror',()=>{
+    if(++consecutiveTileErrors>=3){
+      el('map-fallback').hidden=false;
+      el('map-fallback').textContent='OpenStreetMap basemap tiles could not load. Check your network or content blocker. Trajectories remain modeled wind paths, not contamination or hazard boundaries.';
+    }
+  });
+  baseTiles.addTo(map);
   L.polyline(ROUTE.map(p=>[p.lat,p.lon]),{color:'#041e2d',weight:11,opacity:.94}).addTo(map);
   L.polyline(ROUTE.map(p=>[p.lat,p.lon]),{color:'#57dcd7',weight:4.5,opacity:.95,dashArray:'7,4'}).bindPopup('<b>Approximate travel geography</b><br>CID → I-380 → I-80 → Davenport; NOT turn-by-turn road geometry').addTo(map);
   L.circleMarker([PLANT.lat,PLANT.lon],{radius:9,weight:3,color:'#fff4d4',fillColor:'#ffca75',fillOpacity:1})

@@ -71,4 +71,10 @@ This is an event-specific page. When the event is completed or canceled, update 
 
 ## License & attribution
 
-Code is MIT licensed (see [LICENSE](LICENSE)); source data and external imagery remain subject to their respective providers' terms. The Leaflet map credits OpenStreetMap and CARTO tile sources. Open-Meteo, NOAA and ECMWF are not affiliated with or endorsing the project. See [Open-Meteo licence and terms](https://open-meteo.com/en/terms).
+Code is MIT licensed (see [LICENSE](LICENSE)); source data and external imagery remain subject to their respective providers' terms. The Leaflet map uses key-free OpenStreetMap Standard tiles, with attribution. Open-Meteo, NOAA and ECMWF are not affiliated with or endorsing the project. See [Open-Meteo licence and terms](https://open-meteo.com/en/terms).
+
+## Map basemap: no API key
+
+Leaflet uses the public OpenStreetMap Standard raster tiles at `https://tile.openstreetmap.org/{z}/{x}/{y}.png`, **not CARTO**. No basemap API key is needed. CSS darkens only map tiles to preserve the site's theme; forecast lines retain their original colors.
+
+OpenStreetMap tiles are donation-funded and best-effort, not an unlimited production CDN. Follow the [OSM Foundation tile usage policy](https://operations.osmfoundation.org/policies/tiles/): preserve visible attribution and browser referrers, honor browser caching, and do not prefetch or bulk-download tiles. If traffic grows materially, move to a licensed tile provider or self-host tiles. Map tiles and weather-model data are independent services.
