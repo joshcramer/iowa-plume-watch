@@ -11,7 +11,25 @@ try {
     () => document.querySelectorAll('.wind-path-svg .forecast-path').length >= 2,
     null,{timeout:25000}
   );
-  const details=await page.evaluate(()=>{
+  // Guard against CSS SRI failures: Leaflet JS can work while its CSS is
+  // silently rejected, which makes OSM tiles flow outside the map.
+  await page.waitForFunction(()=>document.querySelector('#map img.leaflet-tile'),null,{timeout:15000});
+  const leafletCss=await page.evaluate(()=>{
+    const tile=document.querySelector('#map img.leaflet-tile');
+    const map=document.querySelector('#map');
+    const pane=document.querySelector('#map .leaflet-tile-pane');
+    return {
+      tilePosition:getComputedStyle(tile).position,
+      panePosition:getComputedStyle(pane).position,
+      mapOverflow:getComputedStyle(map).overflow,
+      cssLink:document.querySelector('link[href*="leaflet.css"]')?.integrity
+    };
+  });
+  assert.equal(leafletCss.tilePosition,'absolute','Leaflet CSS must position image tiles absolutely; a wrong SRI hash causes jumbled tiles');
+  assert.equal(leafletCss.panePosition,'absolute','Leaflet tile pane must be absolutely positioned');
+  assert.equal(leafletCss.mapOverflow,'hidden','Map viewport must clip raster tiles');
+  assert.equal(leafletCss.cssLink,'sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=','Leaflet CSS must use upstream official SRI hash');
+    const details=await page.evaluate(()=>{
     const map=document.querySelector('#map');
     const svg=document.querySelector('#map > svg.wind-path-svg');
     const a=map.getBoundingClientRect(), b=svg.getBoundingClientRect();
