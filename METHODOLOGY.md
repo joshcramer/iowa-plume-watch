@@ -38,10 +38,6 @@ The point is advanced on a local tangent-plane approximation: one degree latitud
 
 Three hypothetical release start times (9:00, 12:00, 15:00 CST) enable schedule sensitivity. The website does not assert that any of those is the actual detonation time.
 
-## Travel comparison
-
-The cyan line follows an **approximation** of the normal Eastern Iowa Airport → Davenport route via I-380 and I-80, composed of a few hand-curated waypoint positions, not a verified road-network geometry. For each simulated point, we compute Euclidean distance to the nearest segment of the approximate route on a local tangent plane and report the minimum. The output is a geometrical comparison, **not an estimate of concentration, probability, contamination or safety**. Air parcels are infinitely narrow points in this model, whereas a plume can have finite width and vertical structure.
-
 ## How updates and statuses work
 
 A separate NTNT worker attempts updates every three hours. The website serves its local snapshot without waiting on upstream providers. **Failed model calls are omitted**; if all calls fail the site continues showing the previous snapshot, marked stale when its downloaded age exceeds nine hours. This is a forecast *refresh interval*, not real-time sensing or guaranteed update frequency.
@@ -57,7 +53,7 @@ Government web pages are checked for *changed visible text*, a heuristic that ca
 - **Observational validation:** no air concentration, filter sample, soil sample or field measurements are ingested or inferred.
 - **Official map updates:** the forecast model is not a substitute for the Army's updated dispersion/deposition maps released closer to the event.
 
-No presence/absence of a modeled point near Cedar Rapids, Davenport or the I-380/I-80 route can prove exposure or safety. Always consult official agencies and post-event measurements for action decisions.
+The presence or absence of a modeled wind path near a location cannot prove exposure or safety. Always consult official agencies and post-event measurements for action decisions.
 
 ## Reproducibility
 

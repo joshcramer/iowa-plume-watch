@@ -27,6 +27,14 @@ try {
     () => document.querySelectorAll('.wind-path-svg .forecast-path').length >= 2,
     null,{timeout:25000}
   );
+  assert.equal(await page.locator('.reference-route, .airport-marker, .davenport-marker, #route-distance').count(),0,
+    'The public map must not render the personal itinerary, its endpoints, or route-distance readouts');
+  assert.equal(await page.locator('img[src*="nov23-"]').count(),0,
+    'Archived graphics containing the itinerary must not appear on the page');
+  for(const name of ['nov23-transport-screening.png','nov23-wind-sensitivity.png']){
+    const result=await page.request.head(`${origin}/assets/images/${name}?check=removed`);
+    assert.equal(result.status(),404,'Retired graphics must not be served');
+  }
   const reviewed=await page.request.get(`${origin}/data/official-updates.json`).then(r=>r.json());
   assert.ok(reviewed.entries.length>0,'Public update log should have reviewed notices');
   assert.equal(await page.locator('#official-update-log li').count(),reviewed.entries.length);
@@ -63,16 +71,18 @@ try {
     };
   });
   assert.ok(details.paths>=2,'Visible SVG path shapes must be present');
-  // The route and plant marker must not disappear into Leaflet's Canvas layer.
-  await page.waitForFunction(()=>document.querySelector('.wind-path-svg .reference-route') && document.querySelector('.wind-path-svg .plant-marker'),null,{timeout:10000});
-  await page.waitForTimeout(2000);
-  assert.equal(await page.locator('.wind-path-svg .reference-route').count(),1,'Airport route visible on the SVG overlay');
   assert.equal(await page.locator('.wind-path-svg .plant-marker').count(),1,'Detonation site marker visible on the SVG overlay');
-  assert.equal(await page.locator('.wind-path-svg .airport-marker').count(),1,'Airport marker visible on the SVG overlay');
   assert.ok(details.modelCount>=2,'Forecast models should be populated');
   assert.ok(details.dx<3&&details.dy<3&&details.widthDiff<3,'Overlay must align to map container');
   assert.match(details.status,/path/i,'Overlay status must report paths');
   await page.locator('#map').scrollIntoViewIfNeeded();
+  await page.getByRole('button',{name:'Focus on Middletown'}).click();
+  const centerError=await page.locator('.wind-path-svg .plant-marker').evaluate(marker=>{
+    const svg=marker.ownerSVGElement;
+    return Math.hypot(Number(marker.getAttribute('cx'))-svg.clientWidth/2,Number(marker.getAttribute('cy'))-svg.clientHeight/2);
+  });
+  assert.ok(centerError<3,'The local map view centers on the site marker');
+  await page.getByRole('button',{name:'Show full tracks'}).click();
 
   // A two-hour map label and the scrubber must agree on elapsed time.
   assert.equal(await page.locator('.wind-path-svg .forecast-time-label').count(),0,'Clean default must omit boxed labels');
@@ -164,6 +174,7 @@ try {
     assert.ok(mobileLayout.top<440,'Map should start within the first phone viewport');
     assert.ok(mobileLayout.scroll<=mobileLayout.width,'Page should not scroll sideways');
     assert.equal(await mobile.locator('#altitude-compare').count(),0);
+    assert.equal(await mobile.locator('.reference-route, #route-distance, img[src*="nov23-"]').count(),0);
     await mobile.setViewportSize({width:320,height:844});
     const narrowFits=await mobile.evaluate(()=>{
       const shell=document.querySelector('.header-content').getBoundingClientRect();

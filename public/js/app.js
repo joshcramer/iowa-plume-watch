@@ -1,11 +1,11 @@
-import {PLANT,PLACES,ROUTE,LEVELS,integrate,sourceWind,toCompass,closestToRoute,validateSnapshot} from './trajectory.js';
-import {createTransportOverlay,clockAt} from './overlay.js?v=ntnt-4';
+import {PLANT,LEVELS,integrate,sourceWind,toCompass,validateSnapshot} from './trajectory.js?v=ntnt-5';
+import {createTransportOverlay,clockAt} from './overlay.js?v=ntnt-5';
 import {inspectNearestTrack,formatElapsed} from './inspect.js';
 
 const el=id=>document.getElementById(id);
 // Prefer GFS’s full set of wind levels, regardless of snapshot key order.
 const MODEL_ORDER=['gfs','rrfs','ecmwf'];
-const state={scenarioDate:el('forecast').dataset.scenarioDate||null,archiveOn:el('forecast').dataset.archiveOn||null,snapshot:null,model:'',release:12,duration:8,enabled:new Set(LEVELS.map(x=>x.key)),layers:[],map:null,routeLayer:null,transportOverlay:null,displayTracks:[],elapsed:4,showTimeDots:false,extended:null,viewMode:'all',viewKey:'',loadError:''};
+const state={scenarioDate:el('forecast').dataset.scenarioDate||null,archiveOn:el('forecast').dataset.archiveOn||null,snapshot:null,model:'',release:12,duration:8,enabled:new Set(LEVELS.map(x=>x.key)),map:null,transportOverlay:null,displayTracks:[],elapsed:4,showTimeDots:false,extended:null,viewMode:'all',viewKey:'',loadError:''};
 const formatDate=(iso,withYear=false)=>iso?new Intl.DateTimeFormat('en-US',{timeZone:'America/Chicago',month:'short',day:'numeric', ...(withYear?{year:'numeric'}:{}),hour:'numeric',minute:'2-digit',timeZoneName:'short'}).format(new Date(iso)):'—';
 const shortDate=date=>date?new Intl.DateTimeFormat('en-US',{timeZone:'UTC',month:'short',day:'numeric'}).format(new Date(date+'T00:00:00Z')):'—';
 const chicagoToday=()=>new Intl.DateTimeFormat('sv-SE',{timeZone:'America/Chicago',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
@@ -135,7 +135,7 @@ function createHoverInspector(map){
 }
 function makeMap(){
   if(typeof L==='undefined'){el('map-fallback').hidden=false;return;}
-  const map=L.map('map',{zoomControl:false,scrollWheelZoom:false,preferCanvas:false}).setView([41.30,-91.35],8);
+  const map=L.map('map',{zoomControl:false,scrollWheelZoom:false,preferCanvas:false}).setView([PLANT.lat,PLANT.lon],8);
   L.control.zoom({position:'bottomright'}).addTo(map);
   // OpenStreetMap Standard requires no API key. Only visible tiles are requested.
   const baseTiles=L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{
@@ -151,9 +151,8 @@ function makeMap(){
     }
   });
   baseTiles.addTo(map);
-  // Travel route, site marker and forecast paths are all rendered in the SVG layer.
   state.map=map;
-  state.transportOverlay=createTransportOverlay(map,{route:ROUTE,plant:PLANT,places:PLACES});
+  state.transportOverlay=createTransportOverlay(map,PLANT);
   state.hoverInspector=createHoverInspector(map);
 }
 function installControls(){
@@ -223,8 +222,6 @@ function renderHeader(){
 }
 function render(){
   renderHeader();
-  for(const l of state.layers){try{state.map?.removeLayer(l);}catch{}}
-  state.layers=[];
   const model=activeSnapshot()?.models?.[state.model];
   renderLevelControls(model);
   const overlayStatus=el('overlay-status');
@@ -233,7 +230,7 @@ function render(){
     state.hoverInspector?.hide();
     state.transportOverlay?.setTracks([],{scenarioDate:state.scenarioDate,elapsedHours:state.elapsed,releaseHour:state.release,showTimeDots:state.showTimeDots});
     updateTimeline();
-    overlayStatus.textContent=state.loadError ? `Overlay unavailable: ${state.loadError}` : 'Awaiting live wind paths. No forecast overlay is displayed.';el('route-distance').textContent='Unavailable';el('model-readout').textContent='No live forecast from a validated model is available. The static reference diagrams below remain non-live, illustrative analyses.';el('wind-rows').innerHTML='<div class="empty-winds">No verified numerical upper-air winds loaded yet.</div>';return;}
+    overlayStatus.textContent=state.loadError ? `Overlay unavailable: ${state.loadError}` : 'Awaiting live wind paths. No forecast overlay is displayed.';el('model-readout').textContent='No validated forecast is available for this scenario.';el('wind-rows').innerHTML='<div class="empty-winds">No verified numerical upper-air winds loaded yet.</div>';return;}
   const metrics=[];
   const winds=[];
   const displayPaths=[];
@@ -246,8 +243,7 @@ function render(){
     winds.push(`<div class="wind-row"><div><strong><i class="color-marker" data-level="${level.key}"></i>${escapeText(level.label)}</strong><small>${escapeText(level.note)}</small></div><div class="wind-from"><span class="wind-arrow"  aria-hidden="true">${['↑','↗','→','↘','↓','↙','←','↖'][Math.round(towards/45)%8]}</span>${toCompass(forecast.comingFrom)} · ${mph(forecast.speedKmh)}</div><div class="wind-to">${toCompass(towards)} · ${Math.round(towards)}°</div></div>`);
     if(!state.enabled.has(level.key))continue;
     if(traj.points.length>=2){
-      const closest=closestToRoute(traj.points);
-      metrics.push({level,closest,traj,wind:forecast});
+      metrics.push({level,traj,wind:forecast});
       displayPaths.push(...traj.points.map(p=>[p.lat,p.lon]));
       displayTracks.push({key:level.key,points:traj.points,color:level.color,label:level.label,truncated:traj.truncated});
     }
@@ -258,20 +254,22 @@ function render(){
   updateTimeline();
   el('wind-rows').innerHTML=winds.join('');
   if(metrics.length){
-    // Center the viewport on the trajectories AND the airport corridor.
-    // Previously the 8-hour paths could run off-screen at the fixed zoom.
+    // Fit the full tracks, or recenter the local view on the release site.
     const viewKey=[state.snapshot?.fetched_at_utc,state.extended?.generated_at_utc,state.model,state.release,state.duration,state.viewMode,[...state.enabled].sort().join(',')].join('|');
     if(state.map && viewKey!==state.viewKey && displayPaths.length){
       try {
         state.map.invalidateSize({pan:false});
-        const locations=[...(state.viewMode==='all'?displayPaths:[]),...ROUTE.map(p=>[p.lat,p.lon]),[PLANT.lat,PLANT.lon]];
-        state.map.fitBounds(L.latLngBounds(locations),{padding:[25,25],maxZoom:8,animate:false});
+        if(state.viewMode==='all'){
+          state.map.fitBounds(L.latLngBounds(displayPaths),{padding:[25,25],maxZoom:8,animate:false});
+        }else{
+          state.map.setView([PLANT.lat,PLANT.lon],8,{animate:false});
+        }
         state.viewKey=viewKey;
       } catch(err){
         console.error('Could not frame wind trajectories',err);
       }
     }
-    el('map-view-toggle').textContent=state.viewMode==='all'?'Focus on Iowa':'Show full tracks';
+    el('map-view-toggle').textContent=state.viewMode==='all'?'Focus on Middletown':'Show full tracks';
     const incomplete=metrics.filter(m=>m.traj.truncated||m.traj.points.at(-1).h+1e-7<state.duration).length;
     const reached=Math.max(...metrics.map(m=>m.traj.points.at(-1).h));
     const longInfo=state.duration>8
@@ -285,14 +283,11 @@ function render(){
     el('long-range-warning').hidden=state.duration<=8;
 
     overlayStatus.textContent=`${metrics.length} modeled air-parcel path${metrics.length===1?'':'s'} displayed for ${model.name} (+${state.duration}h selection).${incomplete?` ${incomplete} stop before the selected horizon.`:''} No lead concentrations or deposition estimates.`;
-    const min=Math.min(...metrics.map(m=>m.closest));
-    el('route-distance').textContent=miles(min);
     const headline=metrics.map(m=>`${escapeText(m.level.short)}: ${toCompass(m.wind.headingTo)} at ${mph(m.wind.speedKmh)}`).join('<br>');
-    el('model-readout').innerHTML=`<b>${escapeText(model.name)}</b><br>${headline}<br><br><b>${miles(min)}</b> minimum path-centerline distance to the approximate airport route.${incomplete?`<br><span class="readout-warning">${incomplete} path(s) truncated due to missing wind data or exiting the sampled grid.</span>`:''}`;
+    el('model-readout').innerHTML=`<b>${escapeText(model.name)}</b><br>${headline}${incomplete?`<br><span class="readout-warning">${incomplete} path(s) truncated due to missing wind data or exiting the sampled grid.</span>`:''}`;
   }else{
     el('long-range-warning').hidden=true;
     overlayStatus.textContent='No trajectories for this selection. Check the available wind levels, time, and forecast timestamp.';
-    el('route-distance').textContent='—';
     el('model-readout').textContent='No wind levels selected, or trajectory data missing. Select one or more available levels.';
   }
 }

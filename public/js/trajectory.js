@@ -17,23 +17,6 @@ export const LEVELS = [
   { key: '925hPa', label: '925 hPa pressure', short: '925 hPa', color: '#f6be70', note: 'Roughly 0.8 km above sea level, not ground' },
   { key: '850hPa', label: '850 hPa pressure', short: '850 hPa', color: '#dd99fa', note: 'Roughly 1.5 km above sea level, not ground' },
 ];
-export const PLACES = {
-  airport: { lat: 41.8847, lon: -91.7108, name: 'CID · Eastern Iowa Airport' },
-  davenport: { lat: 41.5236, lon: -90.5776, name: 'Davenport' },
-  cedar: { lat: 41.9779, lon: -91.6656, name: 'Cedar Rapids' },
-  iowacity: { lat: 41.6608, lon: -91.5302, name: 'Iowa City' },
-  burlington: { lat: 40.8077, lon: -91.1228, name: 'Burlington' },
-  fortmadison: { lat: 40.6298, lon: -91.3152, name: 'Fort Madison' },
-};
-// Approximate waypoints, NOT GPS routing or a formal buffer/hazard corridor.
-export const ROUTE = [
-  { lat: 41.8847, lon: -91.7108 },
-  { lat: 41.6979, lon: -91.6152 },
-  { lat: 41.6740, lon: -91.3480 },
-  { lat: 41.6200, lon: -91.0250 },
-  { lat: 41.6200, lon: -90.7700 },
-  { lat: 41.5236, lon: -90.5776 },
-];
 const DEG_TO_RAD = Math.PI / 180;
 
 export function fromWind(speedKmh, meteorologicalFromDegrees) {
@@ -124,29 +107,6 @@ export function localHour(date, hour) {
   // Date arithmetic in UTC only to form wall-clock date labels; no instant conversion.
   const d = new Date(`${date}T00:00:00Z`);d.setUTCHours(d.getUTCHours()+hour);
   return `${d.toISOString().slice(0,10)}T${d.toISOString().slice(11,13)}:00`;
-}
-export function distanceKm(p,q) {
-  const dy=(p.lat-q.lat)*111.195;
-  const dx=(p.lon-q.lon)*111.195*Math.cos((p.lat+q.lat)/2*DEG_TO_RAD);
-  return Math.hypot(dx,dy);
-}
-// Line segment distance in a local approximate plane: a geographic screening
-// metric, NOT route safety, exposure probability, or predicted deposition.
-export function closestToRoute(path, route=ROUTE) {
-  if (!path?.length) return null;
-  const origin=PLANT,cos=Math.cos(origin.lat*DEG_TO_RAD);
-  const xy=p=>[(p.lon-origin.lon)*111.195*cos,(p.lat-origin.lat)*111.195];
-  let best=Infinity;
-  for (const p of path) {
-    const [x,y]=xy(p);
-    for(let i=0;i<route.length-1;i++) {
-      const [ax,ay]=xy(route[i]),[bx,by]=xy(route[i+1]);
-      const dx=bx-ax,dy=by-ay,den=dx*dx+dy*dy;
-      const t=Math.max(0,Math.min(1,den?((x-ax)*dx+(y-ay)*dy)/den:0));
-      best=Math.min(best,Math.hypot(x-(ax+t*dx),y-(ay+t*dy)));
-    }
-  }
-  return best;
 }
 export function validateSnapshot(snapshot) {
   if (!snapshot || snapshot.schema !== 1 || typeof snapshot.models !== 'object') throw Error('Unrecognized forecast data format');

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {PLANT,fromWind,integrate,localHour,sampleWind,sourceWind,closestToRoute,toCompass} from '../public/js/trajectory.js';
+import {PLANT,fromWind,integrate,localHour,sampleWind,sourceWind,toCompass} from '../public/js/trajectory.js';
 function fakeModel(speed=20,dir=45){
   const lats=[39,40,41,42,43],lons=[-94,-92,-90,-88],locations=[];
   const time=Array.from({length:48},(_,i)=>localHour('2026-11-25',i));
@@ -32,7 +32,6 @@ test('sampled wind and heading never confuse from vs toward',()=>{
 test('missing forecast data does not create extrapolated tracks',()=>{
   const model=fakeModel();model.locations[0].hourly.wind_speed_850hPa.fill(null);
   assert.equal(sampleWind(model,38,0,'850hPa','2026-11-25T12:00'),null);
-  assert.equal(closestToRoute([{lat:PLANT.lat,lon:PLANT.lon}])>0,true);
 });
 test('clock crosses from Nov 25 to Nov 26 without bad labels',()=>{
   assert.equal(localHour('2026-11-25',25),'2026-11-26T01:00');

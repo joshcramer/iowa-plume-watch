@@ -44,9 +44,9 @@ export function pointAtElapsed(track,h){
 
 function lineD(coords){return coords.map(([x,y],i)=>(i?'L':'M')+x.toFixed(2)+' '+y.toFixed(2)).join(' ');}
 
-export function createTransportOverlay(map,reference={}){
+export function createTransportOverlay(map,plant){
   const root=map.getContainer();
-  const layer=svg('svg',{class:'wind-path-svg',role:'img','aria-label':'Iowa map showing approximate airport route and modeled wind trajectories; not a lead hazard map'});
+  const layer=svg('svg',{class:'wind-path-svg',role:'img','aria-label':'Iowa map showing the release site and modeled wind trajectories; not a lead hazard map'});
   root.appendChild(layer);
   let tracks=[];
   let elapsedHours=4;
@@ -72,12 +72,6 @@ export function createTransportOverlay(map,reference={}){
         const a=map.latLngToContainerPoint([south,lon]),b=map.latLngToContainerPoint([north,lon]);
         if(a&&b)layer.appendChild(svg('path',{d:lineD([[a.x,a.y],[b.x,b.y]]),stroke:'#496d7a','stroke-width':.7,opacity:.24,fill:'none'}));
       }
-    }
-    const route=(reference.route||[]).map(p=>map.latLngToContainerPoint([p.lat,p.lon])).filter(p=>p&&finite(p.x)&&finite(p.y)).map(p=>[p.x,p.y]);
-    if(route.length>=2){
-      const d=lineD(route);
-      layer.append(svg('path',{class:'reference-halo',d,fill:'none',stroke:'#072636','stroke-width':8,'stroke-linecap':'round','stroke-linejoin':'round',opacity:.92}),
-        svg('path',{class:'reference-route',d,fill:'none',stroke:'#21cfcb','stroke-width':4,'stroke-dasharray':'9 5','stroke-linejoin':'round','stroke-linecap':'round'}));
     }
     // Draw complete possible trajectories faintly, then brighten only the
     // segment reached by the selected hypothetical elapsed time.
@@ -139,10 +133,7 @@ export function createTransportOverlay(map,reference={}){
       t.textContent=label;
       layer.appendChild(t);
     }
-    const places=reference.places||{};
-    marker(places.airport,'CID Airport','#20d0cb','airport-marker',12,-9);
-    marker(places.davenport,'Davenport','#20d0cb','davenport-marker',12,20);
-    marker(reference.plant,'Detonation site','#f6bb65','plant-marker',12,-12);
+    marker(plant,'Detonation site','#f6bb65','plant-marker',12,-12);
     layer.dataset.pathCount=String(visibleTrackCount);
     layer.dataset.elapsedHours=String(elapsedHours);
   }
