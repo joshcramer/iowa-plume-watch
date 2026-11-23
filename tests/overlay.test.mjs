@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import {projectTrack,pointAtElapsed,clockAt} from '../public/js/overlay.js';
+import {projectTrack,pointAtElapsed,clockAt,modelSpread} from '../public/js/overlay.js';
 test('wind trajectory projection discards invalid values but preserves valid positions',()=>{
   const map={latLngToContainerPoint:([lat,lon])=>({x:lon*2,y:lat*2})};
   const result=projectTrack(map,{points:[{lat:40,lon:-90},{lat:41,lon:-91},{lat:NaN,lon:-92}]});
@@ -23,14 +23,21 @@ test('elapsed time markers interpolate model positions and do not extrapolate',(
   assert.equal(pointAtElapsed(track,-1),null);
 });
 test('clock labels are relative to the hypothetical release and cross midnight',()=>{
-  assert.match(clockAt(12,4,'2026-11-25'),/Nov 25, 4:00 PM CT/);
-  assert.match(clockAt(23,2,'2026-12-31'),/Jan 1, 1:00 AM CT/);
+  assert.match(clockAt(12,4,'2026-11-25'),/11\/25\/26, 4:00 PM CT/);
+  assert.match(clockAt(23,2,'2026-12-31'),/01\/01\/27, 1:00 AM CT/);
 });
 
-test('time checkpoint labels are optional and no longer obscure the paths',()=>{
- const src=fs.readFileSync(new URL('../public/js/overlay.js',import.meta.url),'utf8');
- assert.match(src,/let showTimeDots=false/);
- assert.match(src,/if\(showTimeDots\)/);
- assert.doesNotMatch(src,/time-label-bg/);
- assert.doesNotMatch(src,/labelTime\(/);
+test('wind spread needs distinct model tracks and stops at their shared data limit',()=>{
+  const map={latLngToContainerPoint:([lat,lon])=>({x:lon,y:lat})};
+  const point=(h,lat,lon)=>({h,lat,lon});
+  const gfs={model:'gfs',points:[point(0,0,0),point(.25,2,1),point(.5,4,2),point(.75,6,3)]};
+  const rrfs={model:'rrfs',points:[point(0,0,0),point(.25,-2,1),point(.5,-4,2)]};
+  assert.equal(modelSpread(map,[gfs]).d,'');
+  assert.equal(modelSpread(map,[gfs,gfs]).d,'');
+  assert.equal(modelSpread(map,[gfs,{...gfs,model:'ecmwf'}]).d,'');
+  const band=modelSpread(map,[gfs,rrfs]);
+  assert.equal(band.hours,.5);
+  assert.deepEqual(band.models,['gfs','rrfs']);
+  assert.match(band.d,/2\.00 -4\.00/);
+  assert.doesNotMatch(band.d,/3\.00 6\.00/);
 });

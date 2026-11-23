@@ -1,17 +1,18 @@
 import {PLANT,LEVELS,integrate,sourceWind,toCompass,validateSnapshot,localHour} from './trajectory.js?v=ntnt-8';
-import {createTransportOverlay,clockAt} from './overlay.js?v=ntnt-6';
+import {createTransportOverlay,clockAt,usDate} from './overlay.js?v=ntnt-9';
 import {inspectNearestTrack,formatElapsed} from './inspect.js';
 
 const el=id=>document.getElementById(id);
 // Prefer GFS’s full set of wind levels, regardless of snapshot key order.
 const MODEL_ORDER=['gfs','rrfs','ecmwf'];
-const state={officialDate:el('forecast').dataset.scenarioDate||null,selectedDate:'',archiveOn:el('forecast').dataset.archiveOn||null,snapshot:null,model:'',release:12,duration:8,officialDuration:8,enabled:new Set(LEVELS.map(x=>x.key)),map:null,transportOverlay:null,displayTracks:[],elapsed:4,showTimeDots:false,extended:null,viewMode:'all',viewKey:'',loadError:'',get scenarioDate(){return this.selectedDate||this.officialDate;}};
-const formatDate=(iso,withYear=false)=>iso?new Intl.DateTimeFormat('en-US',{timeZone:'America/Chicago',month:'short',day:'numeric', ...(withYear?{year:'numeric'}:{}),hour:'numeric',minute:'2-digit',timeZoneName:'short'}).format(new Date(iso)):'—';
-const shortDate=date=>date?new Intl.DateTimeFormat('en-US',{timeZone:'UTC',month:'short',day:'numeric'}).format(new Date(date+'T00:00:00Z')):'—';
+const state={officialDate:el('forecast').dataset.scenarioDate||null,selectedDate:'',archiveOn:el('forecast').dataset.archiveOn||null,snapshot:null,model:'',release:12,duration:8,officialDuration:8,enabled:new Set(LEVELS.map(x=>x.key)),map:null,transportOverlay:null,displayTracks:[],elapsed:4,extended:null,viewKey:'',loadError:'',get scenarioDate(){return this.selectedDate||this.officialDate;}};
+const centralTimestamp=new Intl.DateTimeFormat('en-US',{timeZone:'America/Chicago',month:'2-digit',day:'2-digit',year:'2-digit',hour:'numeric',minute:'2-digit',timeZoneName:'short'});
+const formatDate=iso=>iso?centralTimestamp.format(new Date(iso)):'—';
+const shortDate=date=>date?usDate.format(new Date(date+'T00:00:00Z')):'—';
 const chicagoToday=()=>new Intl.DateTimeFormat('sv-SE',{timeZone:'America/Chicago',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
 const activeSnapshot=()=>state.scenarioDate && state.snapshot?.event_date===state.officialDate ? state.snapshot : null;
 const modelHasWind=(model,date,hour)=>Boolean(date && model?.available_levels?.some(key=>sourceWind(model,key,hour,date)));
-const dateLabel=new Intl.DateTimeFormat('en-US',{timeZone:'UTC',weekday:'short',month:'short',day:'numeric'});
+
 const escapeText=str=>String(str??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const miles=km=>`${(km/1.609344).toFixed(1)} mi`;
 const mph=kmh=>`${(kmh/1.609344).toFixed(1)} mph`;
@@ -55,10 +56,6 @@ function updateTimeline(){
   state.hoverInspector?.hide();
 }
 function installTimeline(){
-  el('time-dots-toggle').addEventListener('change',event=>{
-    state.showTimeDots=event.target.checked;
-    state.transportOverlay?.setTimeDots(state.showTimeDots);
-  });
   el('timeline-slider').addEventListener('input',event=>{
     pauseTimeline();
     state.elapsed=Number(event.target.value);
@@ -137,7 +134,7 @@ function createHoverInspector(map){
 }
 function makeMap(){
   if(typeof L==='undefined'){el('map-fallback').hidden=false;return;}
-  const map=L.map('map',{zoomControl:false,scrollWheelZoom:false,preferCanvas:false}).setView([PLANT.lat,PLANT.lon],8);
+  const map=L.map('map',{zoomControl:false,scrollWheelZoom:true,preferCanvas:false}).setView([PLANT.lat,PLANT.lon],8);
   L.control.zoom({position:'bottomright'}).addTo(map);
   // OpenStreetMap Standard requires no API key. Only visible tiles are requested.
   const baseTiles=L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{
@@ -180,13 +177,6 @@ function installControls(){
     state.duration=Number(e.target.value);
     state.officialDuration=state.duration;
     state.elapsed=state.duration;
-    state.viewMode=state.duration>8?'all':'local';
-    state.viewKey='';
-    safeRender();
-  });
-  el('map-view-toggle').addEventListener('click',()=>{
-    state.viewMode=state.viewMode==='all'?'local':'all';
-    state.viewKey='';
     safeRender();
   });
   el('model-select').addEventListener('change',e=>{state.model=e.target.value;safeRender();});
@@ -240,7 +230,8 @@ function render(){
   if(!model){
     state.displayTracks=[];
     state.hoverInspector?.hide();
-    state.transportOverlay?.setTracks([],{scenarioDate:state.scenarioDate,elapsedHours:state.elapsed,releaseHour:state.release,showTimeDots:state.showTimeDots});
+    state.transportOverlay?.setTracks([],{scenarioDate:state.scenarioDate,elapsedHours:state.elapsed,releaseHour:state.release});
+    el('spread-legend').hidden=true;
     updateTimeline();
     el('long-range-warning').hidden=true;
     overlayStatus.textContent=state.loadError ? `Overlay unavailable: ${state.loadError}` : 'No forecast wind paths are available for this date and time.';el('model-readout').textContent='No validated forecast is available for this date and time.';el('wind-rows').innerHTML='<div class="empty-winds">No verified numerical upper-air winds loaded yet.</div>';return;}
@@ -263,26 +254,30 @@ function render(){
   }
   state.displayTracks=displayTracks;
   state.hoverInspector?.hide();
-  state.transportOverlay?.setTracks(displayTracks,{scenarioDate:state.scenarioDate,elapsedHours:state.elapsed,releaseHour:state.release,showTimeDots:state.showTimeDots});
+  // Compare the same 10 m level, using only the local grid, even in the regional view.
+  const spreadTracks=displayTracks.some(t=>t.key==='10m')?Object.entries(activeSnapshot().models).map(([id,member])=>({
+    model:id,points:integrate(member,'10m',state.release,8,state.scenarioDate).points
+  })).filter(track=>track.points.length>=2):[];
+  state.transportOverlay?.setTracks(displayTracks,{scenarioDate:state.scenarioDate,elapsedHours:state.elapsed,releaseHour:state.release,spreadTracks});
   updateTimeline();
   el('wind-rows').innerHTML=winds.join('');
   if(metrics.length){
-    // Fit the full tracks, or recenter the local view on the release site.
-    const viewKey=[state.scenarioDate,state.snapshot?.fetched_at_utc,state.extended?.generated_at_utc,state.model,state.release,state.duration,state.viewMode,[...state.enabled].sort().join(',')].join('|');
+    // Reframe on scenario changes, not on every scrub or background refresh.
+    const matchedExtended=state.duration>8&&state.extended?.event_date===state.scenarioDate&&state.extended?.source_snapshot_utc===state.snapshot.fetched_at_utc;
+    const viewKey=[state.scenarioDate,state.model,state.release,state.duration,matchedExtended].join('|');
     if(state.map && viewKey!==state.viewKey && displayPaths.length){
       try {
         state.map.invalidateSize({pan:false});
-        if(state.viewMode==='all'){
-          state.map.fitBounds(L.latLngBounds(displayPaths),{padding:[25,25],maxZoom:8,animate:false});
-        }else{
-          state.map.setView([PLANT.lat,PLANT.lon],8,{animate:false});
-        }
+        const band=state.transportOverlay.svg.querySelector('.model-spread-band');
+        const sharedHours=Number(band?.dataset.hours||0);
+        const spreadPositions=spreadTracks.flatMap(t=>t.points.filter(p=>p.h<=sharedHours).map(p=>[p.lat,p.lon]));
+        state.map.fitBounds(L.latLngBounds([...displayPaths,...spreadPositions]),{padding:[30,34],maxZoom:10,animate:false});
         state.viewKey=viewKey;
       } catch(err){
         console.error('Could not frame wind trajectories',err);
       }
     }
-    el('map-view-toggle').textContent=state.viewMode==='all'?'Focus on Middletown':'Show full tracks';
+
     const incomplete=metrics.filter(m=>m.traj.truncated||m.traj.points.at(-1).h+1e-7<state.duration).length;
     const reached=Math.max(...metrics.map(m=>m.traj.points.at(-1).h));
     const longInfo=state.duration>8
@@ -302,6 +297,12 @@ function render(){
     el('long-range-warning').hidden=true;
     overlayStatus.textContent='No trajectories for this selection. Check the available wind levels, time, and forecast timestamp.';
     el('model-readout').textContent='No wind levels selected, or trajectory data missing. Select one or more available levels.';
+  }
+  const band=state.transportOverlay?.svg.querySelector('.model-spread-band');
+  el('spread-legend').hidden=!band;
+  if(band){
+    const models=band.dataset.models.split(',').map(key=>({gfs:'GFS',rrfs:'RRFS',ecmwf:'ECMWF'}[key]||activeSnapshot().models[key].name));
+    el('spread-coverage').textContent=`${models.join(' / ')} · first ${band.dataset.hours} h`;
   }
 }
 async function loadForecast(){
@@ -339,7 +340,7 @@ function updateDateOptions(){
   }
   const selector=el('date-select');
   const current=state.officialDate?`${shortDate(state.officialDate)} · Army notice`:'No reviewed Army date';
-  selector.replaceChildren(new Option(current,''),...dates.map(date=>new Option(dateLabel.format(new Date(date+'T00:00:00Z')),date)));
+  selector.replaceChildren(new Option(current,''),...dates.map(date=>new Option(shortDate(date),date)));
   selector.value=state.selectedDate;
   selector.disabled=dates.length===0;
   el('date-help').textContent=dates.length?'What-if dates don’t change the Army schedule. Model coverage varies by date and time.':scenarioArchived()?'The forecast is archived. Only the previously reviewed date is shown.':'No alternate dates in this snapshot.';
@@ -367,7 +368,7 @@ async function loadOfficial(){
     const changed=state.officialDate!==(s.scenario_date||null);
     state.officialDate=s.scenario_date||null;
     state.archiveOn=s.archive_on||null;
-    el('official-heading').textContent=s.scenario_date?new Intl.DateTimeFormat('en-US',{timeZone:'UTC',weekday:'long',month:'long',day:'numeric'}).format(new Date(s.scenario_date+'T00:00:00Z')):(s.headline||'No verified date');
+    el('official-heading').textContent=s.scenario_date?shortDate(s.scenario_date):(s.headline||'No verified date');
     el('official-text').textContent=s.summary||'No current schedule verified.';
     el('official-link').href=s.source_url||'https://www.army.mil/asc';
     el('official-reviewed').textContent=s.published_date?`Agency notice published ${shortDate(s.published_date)}${s.reviewed_at_utc?' · Reviewed '+formatDate(s.reviewed_at_utc):''}`:'No reviewed notice';

@@ -45,6 +45,11 @@ try {
   assert.ok(reviewed.entries.length>0,'Public update log should have reviewed notices');
   assert.equal(await page.locator('#official-update-log li').count(),reviewed.entries.length);
   assert.equal(await page.locator('#official-update-log li a').first().getAttribute('href'),reviewed.entries[0].source_url);
+  const dates=await page.locator('#official-update-log time').evaluateAll(nodes=>nodes.map(node=>[node.getAttribute('datetime'),node.textContent.trim()]));
+  assert.deepEqual(dates,reviewed.entries.map(({published_date:iso})=>[iso,`${iso.slice(5,7)}/${iso.slice(8,10)}/${iso.slice(2,4)}`]));
+  for(const text of ['How the maps are made','Data Origins','Review the source code']){
+    assert.equal(await page.getByRole('heading',{name:text,exact:true}).count(),1);
+  }
   // Guard against CSS SRI failures: Leaflet JS can work while its CSS is
   // silently rejected, which makes OSM tiles flow outside the map.
   await page.waitForFunction(()=>document.querySelector('#map img.leaflet-tile'),null,{timeout:15000});
@@ -82,22 +87,21 @@ try {
   assert.ok(details.dx<3&&details.dy<3&&details.widthDiff<3,'Overlay must align to map container');
   assert.match(details.status,/path/i,'Overlay status must report paths');
   await page.locator('#map').scrollIntoViewIfNeeded();
-  await page.getByRole('button',{name:'Focus on Middletown'}).click();
-  const centerError=await page.locator('.wind-path-svg .plant-marker').evaluate(marker=>{
-    const svg=marker.ownerSVGElement;
-    return Math.hypot(Number(marker.getAttribute('cx'))-svg.clientWidth/2,Number(marker.getAttribute('cy'))-svg.clientHeight/2);
-  });
-  assert.ok(centerError<3,'The local map view centers on the site marker');
-  await page.getByRole('button',{name:'Show full tracks'}).click();
-
-  // A two-hour map label and the scrubber must agree on elapsed time.
-  assert.equal(await page.locator('.wind-path-svg .forecast-time-label').count(),0,'Clean default must omit boxed labels');
-  assert.equal(await page.locator('.wind-path-svg .hour-tick').count(),0,'Time checkpoints off by default');
-  await page.locator('#time-dots-toggle').check();
-  assert.ok(await page.locator('.wind-path-svg .hour-tick').count()>0,'Optional time checkpoints appear');
-  await page.locator('#time-dots-toggle').uncheck();
+  assert.equal(await page.locator('#map-view-toggle, #time-dots-toggle').count(),0,'Removed map controls must not render');
+  assert.equal(await page.locator('.model-spread-band').count(),1,'Show a band where the 10 m weather models differ');
+  assert.match(await page.locator('#spread-legend').textContent(),/Not a probability or lead exposure area/);
+  const bandModels=await page.locator('.model-spread-band').getAttribute('data-models');
+  assert.ok(new Set(bandModels.split(',')).size>=2,'The band compares distinct models, not altitudes');
+  assert.ok(await page.locator('.forecast-time-label').count()>0,'Show readable time labels on one track');
+  const beforeZoom=await page.locator('.forecast-path').first().getAttribute('d');
+  const mapBox=await page.locator('#map').boundingBox();
+  await page.mouse.move(mapBox.x+mapBox.width/2,mapBox.y+mapBox.height/2);
+  await page.mouse.wheel(0,-120);
+  await page.waitForFunction(d=>document.querySelector('.forecast-path')?.getAttribute('d')!==d,beforeZoom);
+  await page.mouse.wheel(0,120);
+  await page.waitForFunction(d=>document.querySelector('.forecast-path')?.getAttribute('d')===d,beforeZoom);
   assert.equal(await page.locator('#timeline-slider').inputValue(),'4');
-  assert.match(await page.locator('#timeline-clock').textContent(),/\+4h.*Nov 25.*4:00 PM CT/);
+  assert.match(await page.locator('#timeline-clock').textContent(),/\+4h.*11\/25\/26.*4:00 PM CT/);
   const markerBefore=await page.locator('.wind-path-svg .selected-time-marker').first().locator('circle').first().getAttribute('cx');
   await page.locator('#timeline-slider').fill('2');
   const markerAfter=await page.locator('.wind-path-svg .selected-time-marker').first().locator('circle').first().getAttribute('cx');
@@ -151,6 +155,7 @@ try {
   await page.locator('#level-controls input[data-level="10m"]').uncheck();
   const after=await page.locator('.wind-path-svg .forecast-path').count();
   assert.equal(after,before-1,'Unchecking one wind level removes its forecast path');
+  assert.equal(await page.locator('.model-spread-band').count(),0,'Hiding 10 m also hides its model spread');
   await page.locator('#map').screenshot({path:'browser-map-after-controls.png'});
   // Extended horizon may be absent if the upstream regional provider failed.
   // When real 48h GFS paths are published, verify the browser can display them.
@@ -164,7 +169,7 @@ try {
     await page.selectOption('#release-select','12');
     await page.selectOption('#horizon-select','48');
     assert.equal(await page.locator('#timeline-slider').getAttribute('max'),'48');
-    assert.match(await page.locator('#timeline-clock').textContent(),/Nov 27.*12:00 PM CT/);
+    assert.match(await page.locator('#timeline-clock').textContent(),/11\/27\/26.*12:00 PM CT/);
     const pCount=await page.locator('.wind-path-svg .forecast-path').count();
     assert.ok(pCount>=3,'Extended GFS must have multiple 48h paths');
     const warning=await page.locator('#long-range-warning').textContent();
@@ -203,7 +208,7 @@ try {
       assert.equal(await page.locator('#release-select').inputValue(),'15','Changing day must not change the release time');
       assert.equal(await page.locator('#horizon-select').inputValue(),'8','Alternate dates offer the local 8-hour view');
       assert.equal(await page.locator('#horizon-select').isDisabled(),true);
-      assert.match(await page.locator('#timeline-clock').textContent(),/Nov 26.*CT/);
+      assert.match(await page.locator('#timeline-clock').textContent(),/11\/26\/26.*CT/);
       assert.ok(await page.locator('.wind-path-svg .forecast-path').count()>0,'Alternate day draws its own tracks');
       assert.equal(await page.locator('#official-heading').textContent(),official,'Changing day must not change the Army notice');
       await page.selectOption('#release-select','9');

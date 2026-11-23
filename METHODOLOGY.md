@@ -38,6 +38,12 @@ The point is advanced on a local tangent-plane approximation: one degree latitud
 
 Three hypothetical release start times (9:00, 12:00, 15:00 CST) enable schedule sensitivity. The website does not assert that any of those is the actual detonation time.
 
+## Wind model spread on the map
+
+The shaded band compares the available **10 m wind tracks** for one hypothetical start date and time. It connects the model positions at successive 15-minute steps, up to eight hours or the first missing step among the contributing paths. At least two models with differing tracks are required. The colored lines still show the selected model’s paths at the selected wind levels. The 24- and 48-hour views do not extend the band beyond the local comparison window.
+
+This is a comparison of deterministic forecasts, not a calibrated hurricane-style confidence interval. Shading does not imply any concentration, deposition, or chance of exposure, and areas outside the shading are not necessarily safe.
+
 ## How updates and statuses work
 
 A separate NTNT worker attempts updates every three hours. The website serves its local snapshot without waiting on upstream providers. **Failed model calls are omitted**; if all calls fail the site continues showing the previous snapshot, marked stale when its downloaded age exceeds nine hours. This is a forecast *refresh interval*, not real-time sensing or guaranteed update frequency.

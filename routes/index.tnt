@@ -2,17 +2,27 @@ import { response } from "std/http/server"
 import { render_page } from "lib/layout"
 import { official_log, schedule_from } from "lib/official"
 import { parse_iso, format_in } from "std/time"
+import { push } from "std/collections"
+
+fn us_date(date) {
+    if !is_string(date) { return "" }
+    return format_in(unwrap(parse_iso(date + "T00:00:00Z")), "UTC", "%m/%d/%y")
+}
 
 fn get(req) {
     let entries = official_log()["entries"]
     let status = schedule_from(entries)
     let date = status["scenario_date"]
-    let heading = if is_string(date) { format_in(unwrap(parse_iso(date + "T00:00:00Z")), "UTC", "%A, %B %-d") } else { status["headline"] ?? "No verified date" }
+    let heading = if is_string(date) { us_date(date) } else { status["headline"] ?? "No verified date" }
+    let mut updates = []
+    for entry in entries {
+        updates = push(updates, map { "notice": entry, "date_label": us_date(entry["published_date"]) })
+    }
     let page = render_page(map {
         "title": "Iowa Plume Watch · Wind transport explorer",
         "description": "Independent wind-transport screening for Middletown, Iowa. Not a health advisory or exposure map.",
         "body_class": "page-home",
-        "content": template("views/home.html", map { "official": status, "official_heading": heading, "updates": entries })
+        "content": template("views/home.html", map { "official": status, "official_heading": heading, "published_label": us_date(status["published_date"]), "scenario_label": us_date(date), "updates": updates })
     })
     return response(200, map {
         "Content-Type": "text/html; charset=utf-8",

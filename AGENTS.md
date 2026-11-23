@@ -11,7 +11,7 @@ Use a local Compose project and its own volume. Never point tests at the hosted 
 - `server.tnt` registers routes and initializes SQLite; `routes/` serves the site and JSON. Keep handlers small and do not call upstream feeds during a request.
 - `views/`, `public/js/app.js`, and `public/css/styles.css` are the UI entry points. Use the shared layout and partials. Keep templates accessible and preserve the CSP: no inline executable scripts, inline styles, or inline event handlers. Only deliberately public assets belong in `public/`.
 - `worker.tnt`, `jobs/`, and `lib/` handle background refreshes. Read the [jobs recipe](docs/recipes/jobs/RECIPE.md) before changing dispatch. A failed job must raise so the queue retries it; returning `Err` is not enough.
-- `seed/` provides initial local data. `seed/official-updates.json` is a human-reviewed log, not an automatic result of the source watcher. Preserve the distinction between reviewed notices and modeled wind paths. Read [METHODOLOGY.md](METHODOLOGY.md) before changing map interpretation or copy.
+- `seed/` provides initial local data. `seed/official-updates.json` is a human-reviewed log, not an automatic result of the source watcher. Keep structured dates in ISO format and dates in public-facing headline and summary copy in MM/DD/YY. Preserve the distinction between reviewed notices and modeled wind paths. Read [METHODOLOGY.md](METHODOLOGY.md) before changing map interpretation or copy.
 
 ## Verify changes
 
