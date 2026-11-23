@@ -1,0 +1,10 @@
+# Docker Compose loads this for local runs. The hosted deploy selects its own
+# files explicitly and does not publish a host port.
+services:
+  app:
+    platform: linux/amd64
+    ports:
+      - "127.0.0.1:${PLUME_PORT:-8080}:8080"
+  worker:
+    platform: linux/amd64
+    pull_policy: never

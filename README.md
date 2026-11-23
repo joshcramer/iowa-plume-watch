@@ -8,16 +8,24 @@
 
 ## Run locally
 
+Install [Docker Desktop](https://docs.docker.com/get-started/get-docker/) or Docker Engine with the Compose v2 plugin, and make sure Docker is running. Clone the repo or [download and unzip the source](https://github.com/joshcramer/iowa-plume-watch/archive/refs/heads/main.zip). From the folder containing `docker-compose.yml`, run:
+
 ```sh
-docker compose build
-docker compose up -d
+docker compose up --build -d
 ```
 
-The web service and worker use the same checksum-pinned NTNT image, with a named SQLite volume. No API keys are required. The worker checks [Open-Meteo availability metadata](https://open-meteo.com/en/docs/model-updates) every 15 minutes around the scheduled scenario (seven days before through two days after, Chicago time). It downloads only newly available model data, with a 10-minute propagation buffer. The separate source-page fingerprint check runs every three hours. Requests serve local data, never call Open-Meteo, and never commit updates back to GitHub.
+When the app is up, open **[http://127.0.0.1:8080/](http://127.0.0.1:8080/)**. The port is bound to loopback, not your LAN. **No `.env`, API keys, separate database, Node.js, or host NTNT install are required.** Compose builds a shared image with checksum-verified [ntnt 0.6.4](https://github.com/ntntlang/ntnt/releases/tag/v0.6.4) and creates a local SQLite volume. The image is Linux x86-64; on Apple Silicon or another ARM host, Docker needs `linux/amd64` emulation. The first build downloads dependencies, and map tiles come from OpenStreetMap.
 
-Use `docker compose exec app curl -fsS http://localhost:8080/ready` to check storage. To access the site from a local browser, add a development Compose override binding the app port to `127.0.0.1` only. The `compose.heylarri.yml` overlay is for the hosted site and isn't needed locally.
+- **Just want to view the bundled snapshot?** Start only the web app with `docker compose up --build --wait app` instead. If the worker is already running, use `docker compose stop worker` to stop background updates.
+- **Check the install:** Open [`/ready`](http://127.0.0.1:8080/ready) for `{"status":"ready"}`. If it doesn't start, run `docker compose ps` and `docker compose logs --tail=100 app worker`.
+- **Port 8080 already taken?** Put `PLUME_PORT=8081` in an optional `.env` in this folder, then rerun the startup command and open `http://127.0.0.1:8081/`. This is a Compose setting, not a secret.
+- **Update or stop:** After pulling new code or downloading a new source ZIP, rerun the startup command to rebuild. Use `docker compose down` to stop without deleting data. `docker compose down --volumes` also deletes this copy's saved snapshots and job state; only use it for an intentional reset.
+
+Plain `docker compose` loads `docker-compose.override.yml` for local access. Do not use `compose.heylarri.yml` locally; it connects the hosted copy to its ingress network. Coding agents should also read [AGENTS.md](AGENTS.md).
 
 ## Forecast and official status
+
+The worker checks [Open-Meteo availability metadata](https://open-meteo.com/en/docs/model-updates) every 15 minutes around the scheduled scenario (seven days before through two days after, Chicago time). It downloads only newly available model data, with a 10-minute propagation buffer. The separate source-page fingerprint check runs every three hours. Requests serve local data, never call Open-Meteo, and never commit updates back to GitHub.
 
 On a new volume, the application seeds the last verified snapshot from `seed/`. Failed forecast refreshes retain the last good version. Near-range inputs and extended tracks publish together under the same timestamp. Missing providers or levels are shown as unavailable, and truncated paths are not extrapolated. Each model has its own download timestamp. Publication metadata triggers the download but does not prove the exact model run used for every forecast hour. On the third Chicago calendar day after the scenario the worker stops requesting event forecasts and the map labels the data as archival. That is not confirmation that the operation took place.
 
@@ -25,15 +33,22 @@ Reviewed notices live in `seed/official-updates.json` (newest first) and populat
 
 ## Tests
 
+Node.js is only needed for the JavaScript tests, not to run the app. Use Node.js 22 as in [CI](.github/workflows/browser-smoke.yml):
+
 ```sh
-ntnt validate .
-ntnt run tests/forecast-feed.tnt
-ntnt run tests/snapshots.tnt
-ntnt run tests/updates.tnt
 node --test tests/*.test.mjs
 ```
 
-The SQLite regression requires `APP_DATABASE_PATH` to identify a fresh file in a disposable directory. Run these checks with NTNT 0.6.4. Run `APP_URL=http://127.0.0.1:8080 node tests/browser-smoke.mjs` with Chromium and Playwright installed and a running app.
+Run the backend checks using the same image built by the quick start. These commands use disposable containers and never mount the running app's database (POSIX shell syntax):
+
+```sh
+docker run --rm --platform linux/amd64 --network none iowa-plume-watch:local ntnt validate .
+docker run --rm --platform linux/amd64 --network none -v "$PWD/tests:/app/tests:ro" -e APP_DATABASE_PATH=/tmp/snapshots.db iowa-plume-watch:local ntnt run tests/snapshots.tnt
+docker run --rm --platform linux/amd64 --network none -v "$PWD/tests:/app/tests:ro" iowa-plume-watch:local ntnt run tests/forecast-feed.tnt
+docker run --rm --platform linux/amd64 --network none -v "$PWD/tests:/app/tests:ro" iowa-plume-watch:local ntnt run tests/updates.tnt
+```
+
+For a browser smoke test against a fresh app-only instance, run `npm install --no-save --package-lock=false playwright`, `npx playwright install chromium`, then `PLUME_SEED_SCENARIO=1 node tests/browser-smoke.mjs`. Set `APP_URL` if you chose a different port. The full test commands and build checks are in [CI](.github/workflows/browser-smoke.yml).
 
 ## Sources and methodology
 

@@ -23,6 +23,10 @@ page.on('pageerror',e=>errors.push(e.message));
 try {
   await matchSeedScenario(page);
   await page.goto(`${origin}/`,{waitUntil:'domcontentloaded',timeout:30000});
+  const credit=page.locator('footer .footer-credit');
+  assert.equal(await credit.textContent(),'Designed by Larri and powered by ntnt.');
+  assert.equal(await credit.getByRole('link',{name:'Larri',exact:true}).getAttribute('href'),'https://larri.design/');
+  assert.equal(await credit.getByRole('link',{name:'ntnt',exact:true}).getAttribute('href'),'https://ntnt-lang.org/');
   await page.waitForFunction(
     () => document.querySelectorAll('.wind-path-svg .forecast-path').length >= 2,
     null,{timeout:25000}
@@ -173,6 +177,7 @@ try {
     const mobileLayout=await mobile.evaluate(()=>({top:document.querySelector('#map').getBoundingClientRect().top, width:document.documentElement.clientWidth, scroll:document.documentElement.scrollWidth}));
     assert.ok(mobileLayout.top<440,'Map should start within the first phone viewport');
     assert.ok(mobileLayout.scroll<=mobileLayout.width,'Page should not scroll sideways');
+    assert.ok(await mobile.locator('footer .footer-credit').isVisible(),'Footer credit is visible on phones');
     assert.equal(await mobile.locator('#altitude-compare').count(),0);
     assert.equal(await mobile.locator('.reference-route, #route-distance, img[src*="nov23-"]').count(),0);
     const labelFits=await mobile.locator('.map-reference-label').evaluate(label=>{

@@ -26,18 +26,15 @@ jobs:
           docker run --rm --network none -v "$PWD/tests:/app/tests:ro" --entrypoint ntnt plume-check run tests/updates.tnt
           node --test tests/*.test.mjs
       - name: Start cold image and test the interactive map
+        env:
+          APP_IMAGE: plume-check
         run: |
-          docker run -d --name plume-ci --read-only --cap-drop ALL --security-opt no-new-privileges \
-            --tmpfs /tmp:rw,noexec,nosuid,size=16m,uid=10001,gid=10001,mode=1770 \
-            -v plume-ci-data:/app/data -p 127.0.0.1:8080:8080 plume-check
-          for attempt in $(seq 1 20); do
-            if curl -fsS http://127.0.0.1:8080/ready; then break; fi
-            sleep 1
-          done
+          docker compose up --wait --wait-timeout 90 --no-build --pull never app
+          curl -fsS http://127.0.0.1:8080/ready
           curl -fsS http://127.0.0.1:8080/data/forecast.json >/dev/null
-          npm install --no-save playwright
+          npm install --no-save --package-lock=false playwright
           npx playwright install --with-deps chromium
           PLUME_SEED_SCENARIO=1 node tests/browser-smoke.mjs
       - name: Print logs if a check fails
         if: failure()
-        run: docker logs plume-ci
+        run: docker compose logs --no-color app
