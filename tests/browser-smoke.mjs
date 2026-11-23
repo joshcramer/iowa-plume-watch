@@ -83,6 +83,7 @@ try {
   assert.match(inspected,/modeled path|modeled air parcel/i,'Hover inspector must explain meaning');
   assert.match(inspected,/CST/,'Hover inspector must show event-local clock time');
   assert.match(inspected, /\+\d+h/,'Hover inspector must show elapsed time');
+  await page.locator('#map').screenshot({path:'browser-hover-inspect.png'});
   await page.mouse.move(25,25);
   // Four mini-maps must use the same geographic projection and follow the timeline.
   const cards=page.locator('.mini-map-card');
@@ -131,6 +132,14 @@ try {
     assert.match(warning,/0 of \d+ paths end before \+48h/,'Extended GFS should not be reported truncated');
     await page.locator('#map').screenshot({path:'browser-map-48h.png'});
   }
+    const mobile=await browser.newPage({viewport:{width:390,height:844},deviceScaleFactor:1});
+  try{
+    await mobile.goto('http://127.0.0.1:8000/',{waitUntil:'domcontentloaded'});
+    await mobile.waitForFunction(()=>document.querySelectorAll('.mini-map-card').length===4,null,{timeout:25000});
+    const cols=await mobile.evaluate(()=>getComputedStyle(document.querySelector('.mini-map-grid')).gridTemplateColumns);
+    assert.equal(cols.trim().split(/\\s+/).length,1,'Mobile should show one mini-map column');
+    await mobile.locator('.mini-map-card[data-level="10m"]').screenshot({path:'browser-mobile-minis.png'});
+  }finally{await mobile.close();}
     assert.deepEqual(errors,[],'No uncaught JavaScript errors');
   console.log('PASS browser map overlay and controls:',details);
 } finally {

@@ -36,5 +36,9 @@ jobs:
         if: always()
         with:
           name: browser-map-screenshots
-          path: browser-map-*.png
+          path: |
+            browser-map-*.png
+            browser-mini-maps.png
+            browser-hover-inspect.png
+            browser-mobile-minis.png
           if-no-files-found: ignore
