@@ -25,6 +25,15 @@
       "source_url": "https://www.army.mil/article/296990"
     },
     {
+      "id": "army-296937",
+      "notable": false,
+      "published_date": "2026-11-20",
+      "agency": "U.S. Army, HHS and EPA",
+      "headline": "Federal agencies issue a joint statement",
+      "summary": "The Army published a statement with HHS and EPA describing their coordination and saying they would keep state and local officials and the public informed. The statement did not announce a new date.",
+      "source_url": "https://www.army.mil/article/296937"
+    },
+    {
       "id": "army-296926",
       "notable": true,
       "published_date": "2026-11-19",
@@ -37,6 +46,42 @@
       "source_url": "https://www.army.mil/article/296926/postponed_lead_azide_detonation"
     },
     {
+      "id": "earthjustice-emergency-motion-2026-11-19",
+      "notable": false,
+      "published_date": "2026-11-19",
+      "agency": "Earthjustice · Court filing",
+      "headline": "Environmental groups ask the court to stay the EPA permit",
+      "summary": "Earthjustice said it filed an emergency motion in the Eighth Circuit on behalf of the Iowa Environmental Council and Sierra Club, asking the court to put the EPA permit on hold while it reviewed their challenge. This was a request by the groups, not a court ruling.",
+      "source_url": "https://earthjustice.org/press/2026/groups-sue-to-halt-planned-detonation-at-ammunition-plant-in-iowa"
+    },
+    {
+      "id": "army-environmental-assessment-78364",
+      "notable": false,
+      "published_date": "2026-11-18",
+      "agency": "U.S. Army",
+      "headline": "Army publishes its environmental assessment",
+      "summary": "The Army released its environmental assessment for the lead azide risk-mitigation project at the Iowa Army Ammunition Plant.",
+      "source_url": "https://www.dvidshub.net/publication/issues/78364"
+    },
+    {
+      "id": "army-updated-advisory-78347",
+      "notable": false,
+      "published_date": "2026-11-17",
+      "agency": "U.S. Army",
+      "headline": "Army updates the original public advisory",
+      "summary": "The updated advisory for the original 11/20/26 plan listed public contacts and identified a Reserve Center where residents could go. Later notices superseded this advisory.",
+      "source_url": "https://www.dvidshub.net/publication/issues/78347"
+    },
+    {
+      "id": "epa-emergency-permit-public-notice-2026-11-16",
+      "notable": false,
+      "published_date": "2026-11-16",
+      "agency": "U.S. Environmental Protection Agency",
+      "headline": "EPA posts its emergency permit notice",
+      "summary": "EPA’s public notice said the agency had issued an emergency permit for storage and treatment at the plant, effective 11/13/26. The notice was informational and did not set the Army’s operating date.",
+      "source_url": "https://www.epa.gov/ia/iowa-army-ammunition-plant-middletown-iowa-3"
+    },
+    {
       "id": "army-296772",
       "notable": true,
       "published_date": "2026-11-15",
@@ -47,6 +92,15 @@
       "headline": "Army announces the original 11/20/26 plan",
       "summary": "The Army’s public advisory listed 11/20/26 at approximately noon. This date was superseded, and the time did not carry over to the new date.",
       "source_url": "https://www.army.mil/article/296772/iaaap_public_advisory"
+    },
+    {
+      "id": "army-open-house-296388",
+      "notable": false,
+      "published_date": "2026-10-28",
+      "agency": "U.S. Army",
+      "headline": "Army reports on the Middletown open house",
+      "summary": "In its recap of the 10/15/26 open house, the Army said residents and local officials spoke with staff about the planned operation, environmental sampling and post-operation assessments.",
+      "source_url": "https://www.army.mil/article/296388"
     }
   ]
 }

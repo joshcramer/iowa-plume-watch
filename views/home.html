@@ -64,7 +64,7 @@
         </article>
         <div class="official-history" id="official-update-log">
           <h3 id="event-timeline-heading">Event timeline</h3>
-          <p class="section-note">Oldest first, by publication date. A date in a past notice is not confirmation the operation will go ahead.</p>
+          <p class="section-note">Newest first, by publication date. A date in a past notice is not confirmation the operation will go ahead.</p>
           <div class="event-filters" role="group" aria-label="Filter the event timeline" hidden>
             <button type="button" aria-controls="event-timeline" aria-pressed="false" data-events="notable">Notable events</button>
             <button type="button" aria-controls="event-timeline" aria-pressed="true" data-events="all">All events</button>
@@ -74,10 +74,11 @@
             {{#for item in updates}}
             <li data-tier="{{item.tier}}">
               <div class="event-meta"><time datetime="{{item.notice.published_date}}">{{item.date_label}}</time><span>{{item.notice.agency}}</span></div>
-              <div class="event-body"><h4>{{item.notice.headline}}</h4><p>{{item.notice.summary}}</p><a href="{{item.notice.source_url}}" aria-label="Read source: {{item.notice.headline}}" target="_blank" rel="noopener noreferrer">Read source <span aria-hidden="true">↗</span></a></div>
+              <div class="event-body"><h4 tabindex="-1">{{item.notice.headline}}</h4><p>{{item.notice.summary}}</p><a href="{{item.notice.source_url}}" aria-label="Read source: {{item.notice.headline}}" target="_blank" rel="noopener noreferrer">Read source <span aria-hidden="true">↗</span></a></div>
             </li>
             {{/for}}
           </ol>
+          <button type="button" class="event-more" aria-controls="event-timeline" hidden>Show older events</button>
         </div>
       </div>
       <details class="source-watch">

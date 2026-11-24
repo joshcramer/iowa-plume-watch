@@ -15,7 +15,7 @@ Use a local Compose project and its own volume. Never point tests at the hosted 
 
 ## Add an event to the timeline
 
-Add one entry to `seed/official-updates.json` with a unique `id`, the source's `published_date` (`YYYY-MM-DD`), `agency`, `headline`, `summary`, and a direct `source_url`. Keep the file newest first, including the best-supported order within a day. The site displays the timeline oldest first. A backfilled entry belongs on its original publication date, not the date it was added to the log.
+Add one entry to `seed/official-updates.json` with a unique `id`, the source's `published_date` (`YYYY-MM-DD`), `agency`, `headline`, `summary`, and a direct `source_url`. Keep the file newest first, including the best-supported order within a day. The site displays the six newest entries for the current view, then reveals older ones in groups of six. A backfilled entry belongs on its original publication date, not the date it was added to the log.
 
 Set `notable: true` for a turning point (for example, a schedule announcement, a change of plans, a court decision, or a public statement that changes what is known). Use `notable: false` for supporting developments that belong only in **All events**. This flag never changes the schedule. Set `status` or change schedule fields only for a reviewed notice that actually changes the authoritative schedule. Verify the source and publish the log edit separately from automated checks; those checks never add public entries.
 

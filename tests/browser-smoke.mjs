@@ -46,23 +46,34 @@ try {
   const log=page.locator('#official-update-log'), rows=log.locator('li:visible');
   const notable=log.getByRole('button',{name:'Notable events',exact:true}), all=log.getByRole('button',{name:'All events',exact:true});
   await notable.waitFor({state:'visible',timeout:3000});
-  const ordered=reviewed.entries.slice().reverse().sort((a,b)=>a.published_date.localeCompare(b.published_date));
+  const ordered=reviewed.entries.slice().sort((a,b)=>b.published_date.localeCompare(a.published_date));
+  const batch=6, older=log.getByRole('button',{name:'Show older events',exact:true});
+  const highlights=ordered.filter(entry=>entry.notable===true);
   const dates=()=>rows.locator('time').evaluateAll(nodes=>nodes.map(node=>[node.getAttribute('datetime'),node.textContent.trim()]));
   const datesFor=entries=>entries.map(({published_date:iso})=>[iso,`${iso.slice(5,7)}/${iso.slice(8,10)}/${iso.slice(2,4)}`]);
   assert.equal(await notable.getAttribute('aria-pressed'),'true');
-  assert.deepEqual(await dates(),datesFor(ordered.filter(entry=>entry.notable===true)));
+  assert.deepEqual(await dates(),datesFor(highlights.slice(0,batch)));
   const scheduleBefore=await page.locator('#official-heading').textContent();
   const releaseBefore=await page.locator('#release-select').inputValue();
   await all.click();
   assert.equal(await all.getAttribute('aria-pressed'),'true');
-  assert.deepEqual(await dates(),datesFor(ordered));
+  assert.deepEqual(await dates(),datesFor(ordered.slice(0,batch)));
+  for(let offset=batch;offset<ordered.length;offset+=batch){
+    await older.click();
+    const nextHeading=rows.nth(offset).locator('h4');
+    assert.equal(await nextHeading.evaluate(heading=>heading===document.activeElement),true);
+    assert.deepEqual(await dates(),datesFor(ordered.slice(0,offset+batch)));
+  }
+  assert.equal(await older.isVisible(),false);
   assert.deepEqual(await rows.locator('a').evaluateAll(links=>links.map(link=>link.getAttribute('href'))),ordered.map(entry=>entry.source_url));
   assert.equal(await page.locator('#official-heading').textContent(),scheduleBefore);
   assert.equal(await page.locator('#release-select').inputValue(),releaseBefore);
   await notable.focus();
   await page.keyboard.press('Enter');
   assert.equal(await notable.getAttribute('aria-pressed'),'true');
-  assert.deepEqual(await dates(),datesFor(ordered.filter(entry=>entry.notable===true)));
+  assert.deepEqual(await dates(),datesFor(highlights.slice(0,batch)));
+  await all.click();
+  assert.deepEqual(await dates(),datesFor(ordered.slice(0,batch)),'Switching filters returns to the latest entries');
   await page.evaluate(()=>window.scrollTo({top:0,behavior:'instant'}));
   for(const text of ['How the maps are made','Data Origins','Review the source code']){
     assert.equal(await page.getByRole('heading',{name:text,exact:true}).count(),1);
