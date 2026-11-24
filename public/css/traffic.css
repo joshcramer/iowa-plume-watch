@@ -1,0 +1,28 @@
+/* A report in the map's existing palette, with a tabular grid rather than cards. */
+.page-traffic .traffic-report{max-width:1060px;padding-block:clamp(2rem,6vw,4.6rem) 4.5rem}
+.traffic-heading{display:flex;align-items:end;justify-content:space-between;gap:1.1rem;flex-wrap:wrap}
+.traffic-heading h1{font-size:clamp(2.65rem,7vw,5rem);line-height:1.01;letter-spacing:-.04em;margin:0 0 .6rem;font-weight:680}
+.traffic-heading h2,.traffic-notes h2{font-size:1.5rem;line-height:1.2;margin:0 0 .38rem;letter-spacing:-.02em}
+.traffic-heading p,.traffic-notes p{color:#b5c8d2;max-width:68ch;margin:0}
+.traffic-heading .action{min-height:44px}
+.traffic-period{display:flex;align-items:start;justify-content:space-between;gap:.45rem 1.3rem;flex-wrap:wrap;font-size:.82rem;color:#b5c8d2;margin-top:2rem;padding:.8rem 0;border-block:1px solid var(--line)}
+.traffic-period strong{color:var(--ink)}.traffic-period .traffic-warning{color:var(--yellow)}
+.traffic-totals{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));margin:0;border-bottom:1px solid var(--line);background:var(--surface)}
+.traffic-totals>div{padding:clamp(.76rem,2.15vw,1.4rem);min-width:0}.traffic-totals>div+div{border-left:1px solid var(--line)}
+.traffic-totals dt{font-weight:700;font-size:.84rem;color:#b5c8d2}
+.traffic-totals dd{margin:.13em 0 .08em;font-weight:730;font-size:clamp(1.55rem,3.7vw,2.45rem);font-variant-numeric:tabular-nums;line-height:1.18;color:var(--ink);overflow-wrap:anywhere}.traffic-totals>div:first-child dd{color:var(--cyan)}
+.traffic-totals p{font-size:.76rem;margin:.25rem 0 0;color:#b5c8d2;line-height:1.35}
+.traffic-subheading{margin:2.4rem 0 .9rem}.traffic-subheading p{font-size:.88rem}
+.traffic-table-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:.55rem;background:var(--card)}
+.traffic-table-wrap:focus-visible,.traffic-report a:focus-visible{outline:2px solid var(--cyan);outline-offset:3px}
+.traffic-table{width:100%;border-collapse:collapse;font-size:.85rem;font-variant-numeric:tabular-nums;color:#d5e5ec;text-align:right}
+.traffic-table th,.traffic-table td{padding:.72rem clamp(.62rem,1.8vw,1.1rem);white-space:nowrap;border-bottom:1px solid var(--line)}
+.traffic-table tr:last-child td,.traffic-table tbody tr:last-child th{border-bottom:0}
+.traffic-table thead th{background:#153041;color:#e5f1f4;font-size:.76rem;font-weight:750}
+.traffic-table th:first-child{text-align:left}.traffic-table tbody th{color:var(--ink)}.traffic-table tbody th span{color:#a6becb;font-size:.72em;font-weight:500;margin-left:.25rem}
+.traffic-visit{display:table-cell;min-width:8rem}.traffic-visit strong{display:inline-block;min-width:2.6em;color:var(--cyan)}
+.traffic-visit meter{display:inline-block;vertical-align:middle;width:clamp(2.45rem,6vw,5rem);height:.49rem;margin-left:.45rem;appearance:none;background:#1d3c4c;border-radius:4px;overflow:hidden}
+.traffic-visit meter::-webkit-meter-bar{background:#1d3c4c;border:0;border-radius:4px;height:100%}.traffic-visit meter::-webkit-meter-optimum-value{background:var(--cyan)}.traffic-visit meter::-moz-meter-bar{background:var(--cyan)}
+.traffic-notes{margin-top:2rem;border-top:1px solid var(--line);padding-top:1.25rem;font-size:.91rem}.traffic-notes p+p{margin-top:.7rem}.traffic-notes a{text-decoration:underline;text-underline-offset:.15em}
+.traffic-sr{position:absolute;width:1px;height:1px;padding:0;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+@media (max-width:650px){.traffic-totals{grid-template-columns:repeat(2,minmax(0,1fr))}.traffic-totals>div:nth-child(3){border-left:0}.traffic-totals>div:nth-child(n+3){border-top:1px solid var(--line)}.traffic-table{min-width:41rem}.traffic-heading{align-items:start}.traffic-heading .action{margin-top:.2rem}}

@@ -1,0 +1,98 @@
+import { execute_statement, query_rows } from "lib/database"
+import { stringify } from "std/json"
+import { chars } from "std/string"
+import { parse_iso, format, format_in } from "std/time"
+
+fn traffic_host() -> String { return "iowaplumewatch.heylarri.com" }
+
+fn valid_day(value) -> Bool {
+    if !is_string(value) || len(value) != 10 { return false }
+    let parsed = parse_iso(value + "T00:00:00Z")
+    return is_ok(parsed) && format(unwrap(parsed), "%Y-%m-%d") == value
+}
+
+fn store_traffic(payload: Map) -> Result<Int, String> {
+    let rows = payload["days"]
+    let collected_at = payload["collected_at"]
+    if (payload["host"] ?? "") != traffic_host() || !is_int(collected_at) || collected_at <= 0 || !is_array(rows) || len(rows) == 0 || len(rows) > 30 {
+        return Err("invalid traffic batch")
+    }
+    let mut seen = map {}
+    for row in rows {
+        if !is_map(row) || !valid_day(row["day"]) { return Err("invalid traffic day") }
+        let day = row["day"]
+        if (seen[day] ?? false) || day >= format(collected_at, "%Y-%m-%d") { return Err("duplicate or open traffic day") }
+        seen[day] = true
+        for field in ["requests", "bytes", "visits", "views", "crawler_views"] {
+            let value = row[field]
+            if !is_int(value) || value < 0 { return Err("invalid aggregate count") }
+        }
+    }
+    return execute_statement(r#"
+        INSERT INTO site_traffic_daily (host, utc_day, collected_at, requests, bytes, visits, views, crawler_views)
+        SELECT ?, json_extract(value, '$.day'), ?, json_extract(value, '$.requests'),
+               json_extract(value, '$.bytes'), json_extract(value, '$.visits'),
+               json_extract(value, '$.views'), json_extract(value, '$.crawler_views')
+        FROM json_each(?) WHERE true
+        ON CONFLICT (host, utc_day) DO UPDATE SET
+            collected_at=excluded.collected_at, requests=excluded.requests, bytes=excluded.bytes,
+            visits=excluded.visits, views=excluded.views, crawler_views=excluded.crawler_views
+        WHERE excluded.collected_at >= site_traffic_daily.collected_at
+    "#, [traffic_host(), collected_at, stringify(rows)])
+}
+
+fn format_count(n: Int) -> String {
+    let digits = str(n)
+    let mut out = ""
+    let mut i = 0
+    for digit in chars(digits) {
+        if i > 0 && (len(digits) - i) % 3 == 0 { out = out + "," }
+        out = out + digit
+        i = i + 1
+    }
+    return out
+}
+
+fn format_bytes(n: Int) -> String {
+    let value = unwrap(float(n))
+    if n >= 1000000000 { return str(unwrap(float(round(value / 100000000.0))) / 10.0) + " GB" }
+    if n >= 1000000 { return str(unwrap(float(round(value / 100000.0))) / 10.0) + " MB" }
+    if n >= 1000 { return str(unwrap(float(round(value / 100.0))) / 10.0) + " KB" }
+    return str(n) + " B"
+}
+
+fn traffic_report(clock: Int) -> Map {
+    let saved = query_rows("SELECT utc_day, collected_at, requests, bytes, visits, views, crawler_views FROM site_traffic_daily WHERE host = ? ORDER BY utc_day DESC LIMIT 14", [traffic_host()])
+    if is_err(saved) { return map { "available": false, "unavailable": true } }
+    let rows = unwrap(saved)
+    if len(rows) == 0 { return map { "available": false } }
+    let newest = rows[0]
+    let collected = newest["collected_at"]
+    let mut chart_max = 1
+    let mut totals = map { "requests": 0, "bytes": 0, "visits": 0, "views": 0, "crawler_views": 0 }
+    for r in rows {
+        for field in ["requests", "bytes", "visits", "views", "crawler_views"] { totals[field] = totals[field] + r[field] }
+        if r["visits"] > chart_max { chart_max = r["visits"] }
+    }
+    let mut trend = []
+    for r in rows {
+        let ts = unwrap(parse_iso(r["utc_day"] + "T00:00:00Z"))
+        trend = push(trend, map {
+            "day": r["utc_day"], "label": format(ts, "%b %-d"), "weekday": format(ts, "%a"),
+            "bar": r["visits"], "max": chart_max, "visits": format_count(r["visits"]), "views": format_count(r["views"]),
+            "requests": format_count(r["requests"]), "crawler_views": format_count(r["crawler_views"]), "bytes": format_bytes(r["bytes"])
+        })
+    }
+    totals["days"] = trend
+    totals["available"] = true
+    totals["stale"] = clock - collected > 32 * 3600
+    totals["collected_display"] = format_in(collected, "America/Chicago", "%b %-d, %Y at %-I:%M %p %Z")
+    totals["display"] = map {
+        "visits": format_count(totals["visits"]), "views": format_count(totals["views"]), "requests": format_count(totals["requests"]),
+        "crawler_views": format_count(totals["crawler_views"]), "bytes": format_bytes(totals["bytes"])
+    }
+    totals["latest"] = trend[0]
+    totals["earliest"] = trend[len(trend)-1]
+    totals["day_count"] = len(trend)
+    return totals
+}

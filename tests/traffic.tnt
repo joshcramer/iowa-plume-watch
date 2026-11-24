@@ -1,0 +1,18 @@
+import { store_traffic, traffic_report, traffic_host } from "../lib/traffic.tnt"
+
+let collected = 1795563600
+let row = map { "day": "2026-11-23", "requests": 12, "bytes": 1200, "visits": 3, "views": 4, "crawler_views": 1 }
+let envelope = map { "host": traffic_host(), "collected_at": collected, "days": [row] }
+assert(traffic_report(collected)["available"] == false)
+assert(unwrap(store_traffic(envelope)) == 1)
+assert(unwrap(store_traffic(envelope)) == 1)
+let good = traffic_report(collected)
+assert(good["available"] == true && len(good["days"]) == 1)
+assert(good["requests"] == 12 && good["visits"] == 3 && good["views"] == 4 && good["crawler_views"] == 1)
+assert(good["stale"] == false)
+assert(traffic_report(collected + 36 * 3600)["stale"] == true)
+assert(is_err(store_traffic(map { "host": "other.heylarri.com", "collected_at": collected, "days": [row] })))
+assert(is_err(store_traffic(map { "host": traffic_host(), "collected_at": collected, "days": [row, row] })))
+assert(is_err(store_traffic(map { "host": traffic_host(), "collected_at": collected, "days": [] })))
+assert(traffic_report(collected)["requests"] == 12)
+print("PASS: traffic import is hostname-bound, replay-safe, and keeps last good totals")
