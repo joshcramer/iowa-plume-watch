@@ -1,8 +1,6 @@
-import { connect, query, execute, begin, commit, rollback, close } from "std/db/sqlite"
+import { connect, query, execute, close } from "std/db/sqlite"
 import { cwd, get_env } from "std/env"
-import { mkdir_all } from "std/fs"
-import { dirname, is_absolute } from "std/path"
-import { apply_migrations } from "lib/migrations"
+import { is_absolute } from "std/path"
 
 fn database_path() -> String {
     let configured = get_env("APP_DATABASE_PATH") ?? "data/app.db"
@@ -34,39 +32,9 @@ fn execute_statement(sql: String, params: Array) -> Result<Int, String> {
     return outcome
 }
 
-fn guarded_begin(handle) -> Result<Bool, String> {
-    let started = begin(handle, map { "mode": "immediate" }) otherwise { return Err("SQLite migration lock failed") }
-    return Ok(true)
-}
-fn guarded_migrations(handle) -> Result<Bool, String> {
-    let applied = apply_migrations(handle) otherwise { return Err("SQLite migration failed; startup refused") }
-    return Ok(applied)
-}
-fn guarded_commit(handle) -> Result<Bool, String> {
-    let committed = commit(handle) otherwise { return Err("SQLite migration commit failed; startup refused") }
-    return Ok(committed)
-}
-fn guarded_rollback(handle) -> Bool {
-    let rolled_back = rollback(handle) otherwise { return false }
-    return rolled_back
-}
-fn initialize_owned() -> Result<Bool, String> {
-    let directory = mkdir_all(unwrap(dirname(database_path()))) otherwise { return Err("SQLite directory unavailable") }
-    // Official 0.6.0 configures WAL + foreign keys before publishing this handle.
-    let handle = connect(database_path(), map { "busy_timeout_ms": 5000 }) otherwise { return Err("SQLite unavailable; startup refused") }
-    let started = guarded_begin(handle)
-    if is_err(started) {
-        close(handle)
-        return started
-    }
-    let mut outcome = guarded_migrations(handle)
-    if is_ok(outcome) { outcome = guarded_commit(handle) }
-    if is_err(outcome) { guarded_rollback(handle) }
-    close(handle)
-    return outcome
-}
-
-// Explicit startup only, before route discovery/listen. Fail closed on any error.
+// DDL is owned by the release/zero-config local bootstrap, not server startup.
 fn initialize_database() -> Bool {
-    return unwrap(initialize_owned())
+    let rows = unwrap(query_rows("SELECT id FROM official_events LIMIT 1", []))
+    if len(rows) != 1 { panic("Provision the database and import reviewed events before starting Iowa Plume Watch") }
+    return true
 }

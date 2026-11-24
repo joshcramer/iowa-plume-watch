@@ -1,0 +1,21 @@
+import { get_env } from "std/env"
+import { starts_with } from "std/string"
+import { parse_json } from "std/json"
+import { execute_statement } from "lib/database"
+import { official_log, official_status } from "lib/official"
+import { seed_file } from "lib/snapshots"
+
+let path = unwrap(get_env("APP_DATABASE_PATH"))
+assert(starts_with(path, "/tmp/plume-test."))
+let before = official_log()["entries"]
+let reviewed = official_status()
+let seed = unwrap(parse_json(seed_file("official-updates")))["entries"]
+assert(len(before) == len(seed))
+assert(before[0]["id"] == seed[0]["id"] && before[0]["notable"] == seed[0]["notable"])
+assert(is_string(reviewed["source_url"]))
+assert(unwrap(execute_statement("INSERT INTO official_events(id, published_date, agency, headline, summary, source_url, notable, editorial_order) VALUES (?, ?, ?, ?, ?, ?, 0, 0)", ["db-only", "2099-01-01", "Fixture", "Database-only notice", "Test row", "https://example.invalid/notice"])) == 1)
+let after = official_log()["entries"]
+assert(len(after) == len(seed) + 1 && after[0]["id"] == "db-only" && after[0]["notable"] == false)
+assert(official_status()["scenario_date"] == reviewed["scenario_date"])
+assert(official_status()["source_url"] == reviewed["source_url"])
+print("PASS: existing database serves reviewed event rows and context cannot replace the schedule")

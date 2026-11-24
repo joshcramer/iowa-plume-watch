@@ -9,8 +9,8 @@
 !ntnt.toml
 !lib/
 !lib/**
-!migrations/
-!migrations/**
+!db/
+!db/**
 !middleware/
 !middleware/**
 !routes/

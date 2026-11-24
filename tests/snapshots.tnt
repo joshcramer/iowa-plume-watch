@@ -7,7 +7,7 @@ import { seed_data, persisted_payload, seed_file, store_weather, record_attempt,
 import { visible_text } from "lib/source_watch"
 
 let path = unwrap(get_env("APP_DATABASE_PATH"))
-assert(starts_with(path, "/tmp/") && !exists(path))
+assert(starts_with(path, "/tmp/plume-test.") && exists(path))
 initialize_database()
 seed_data()
 let original = unwrap(persisted_payload("forecast"))
