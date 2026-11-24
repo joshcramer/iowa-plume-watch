@@ -2,7 +2,7 @@ import { response } from "std/http/server"
 import { render_page } from "lib/layout"
 import { official_log, schedule_from } from "lib/official"
 import { parse_iso, format_in } from "std/time"
-import { push, sort } from "std/collections"
+import { push } from "std/collections"
 
 fn us_date(date) {
     if !is_string(date) { return "" }
@@ -15,8 +15,8 @@ fn get(req) {
     let date = status["scenario_date"]
     let heading = if is_string(date) { us_date(date) } else { status["headline"] ?? "No verified date" }
     let mut updates = []
-    // Sort the display by publication day, retaining editorial order within a day.
-    for entry in sort(entries, fn(item) { 0 - unwrap(parse_iso(item["published_date"] + "T00:00:00Z")) }) {
+    // The database returns newest first, retaining editorial order within a day.
+    for entry in entries {
         let is_notable = entry["notable"] ?? false
         updates = push(updates, map {
             "notice": entry,

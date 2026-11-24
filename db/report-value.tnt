@@ -1,0 +1,16 @@
+// Extract only the local bootstrap fields from NTNT's structured reports.
+import { get_env } from "std/env"
+import { read_file } from "std/fs"
+import { parse_json } from "std/json"
+
+let report = unwrap(parse_json(unwrap(read_file(unwrap(get_env("PLUME_DB_REPORT"))))))
+let key = unwrap(get_env("PLUME_DB_FIELD"))
+if key == "digest" {
+    assert(is_string(report["plan_digest"]) && len(report["plan_digest"]) == 64)
+    print(report["plan_digest"])
+} else if key == "diagnostic" {
+    let diagnostics = report["diagnostics"] ?? []
+    if len(diagnostics) == 1 { print(diagnostics[0]["code"]) }
+} else {
+    panic("Unknown migration report field")
+}

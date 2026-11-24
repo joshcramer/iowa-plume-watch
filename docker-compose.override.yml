@@ -3,6 +3,7 @@
 services:
   app:
     platform: linux/amd64
+    command: ["sh", "/app/db/local-start.sh"]
     ports:
       - "127.0.0.1:${PLUME_PORT:-8080}:8080"
   worker:

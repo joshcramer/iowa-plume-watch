@@ -1,0 +1,74 @@
+// Reviewed content import; no schema changes and no network access.
+import { connect, begin, query, execute, commit, rollback, close } from "std/db/sqlite"
+import { get_env } from "std/env"
+import { read_file } from "std/fs"
+import { parse_json } from "std/json"
+import { parse_iso, format_in } from "std/time"
+import { starts_with } from "std/string"
+import { database_path } from "lib/database"
+
+fn import_rows(handle, entries: Array) -> Int {
+    let order = unwrap(query(handle, "SELECT coalesce(min(editorial_order), 0) AS first_position FROM official_events", []))
+    let mut position = order[0]["first_position"] - len(entries)
+    let mut added = 0
+    let mut seen = map {}
+    for entry in entries {
+        let id = entry["id"]
+        let date = entry["published_date"]
+        assert(is_string(id) && len(id) > 0 && !is_bool(seen[id]))
+        seen[id] = true
+        assert(is_string(date) && format_in(unwrap(parse_iso(date + "T00:00:00Z")), "UTC", "%Y-%m-%d") == date)
+        assert(is_string(entry["agency"]) && is_string(entry["headline"]) && is_string(entry["summary"]))
+        assert(is_string(entry["source_url"]) && starts_with(entry["source_url"], "https://"))
+        assert(is_bool(entry["notable"]))
+        let status = entry["status"]
+        if is_string(status) {
+            assert(status == "scheduled" || status == "postponed" || status == "cancelled")
+            let scheduled = entry["scheduled_date"]
+            if status == "scheduled" {
+                assert(is_string(scheduled) && format_in(unwrap(parse_iso(scheduled + "T00:00:00Z")), "UTC", "%Y-%m-%d") == scheduled)
+            } else { assert(is_none(scheduled)) }
+        } else {
+            assert(is_none(status) && is_none(entry["scheduled_date"]) && is_none(entry["scheduled_time"]))
+        }
+        let count = unwrap(execute(handle, "INSERT INTO official_events (id, published_date, reviewed_at_utc, agency, headline, summary, source_url, status, scheduled_date, scheduled_time, notable, editorial_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO NOTHING", [id, date, entry["reviewed_at_utc"], entry["agency"], entry["headline"], entry["summary"], entry["source_url"], entry["status"], entry["scheduled_date"], entry["scheduled_time"], if entry["notable"] { 1 } else { 0 }, position]))
+        added = added + count
+        position = position + 1
+    }
+    return added
+}
+
+fn guarded_import(handle, entries: Array) -> Result<Int, String> {
+    let count = import_rows(handle, entries) otherwise { return Err("Event import stopped; no entries committed") }
+    return Ok(count)
+}
+
+fn attempt_begin(handle) -> Bool {
+    let started = begin(handle, map { "mode": "immediate" }) otherwise { return false }
+    return true
+}
+
+fn attempt_commit(handle) -> Bool {
+    let finished = commit(handle) otherwise { return false }
+    return finished
+}
+
+fn import_checked(entries: Array) -> Int {
+    let handle = unwrap(connect(database_path(), map { "busy_timeout_ms": 5000 }))
+    if !attempt_begin(handle) {
+        close(handle)
+        panic("Could not begin event import")
+    }
+    let outcome = guarded_import(handle, entries)
+    let completed = is_ok(outcome) && attempt_commit(handle)
+    if !completed { rollback(handle) }
+    close(handle)
+    if is_err(outcome) { return unwrap(outcome) }
+    if !completed { panic("Could not commit event import") }
+    return unwrap(outcome)
+}
+
+let bundle = unwrap(parse_json(unwrap(read_file(get_env("APP_EVENT_IMPORT_PATH") ?? "/app/seed/official-updates.json"))))
+assert(bundle["schema"] == 1 && len(bundle["entries"]) > 0)
+let imported = import_checked(bundle["entries"])
+print("Imported #{imported} new reviewed event(s)")

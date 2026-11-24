@@ -1,9 +1,25 @@
-import { parse_json } from "std/json"
 import { add_days, format_in, parse_iso } from "std/time"
-import { seed_file } from "lib/snapshots"
+import { push } from "std/collections"
+import { query_rows } from "lib/database"
 
 fn official_log() -> Map {
-    return unwrap(parse_json(seed_file("official-updates")))
+    let rows = unwrap(query_rows("SELECT id, published_date, reviewed_at_utc, agency, headline, summary, source_url, status, scheduled_date, scheduled_time, notable FROM official_events ORDER BY published_date DESC, editorial_order, id", []))
+    let mut entries = []
+    for row in rows {
+        let mut entry = map {
+            "id": row["id"], "published_date": row["published_date"], "agency": row["agency"],
+            "headline": row["headline"], "summary": row["summary"], "source_url": row["source_url"],
+            "notable": row["notable"] == 1
+        }
+        if is_string(row["reviewed_at_utc"]) { entry["reviewed_at_utc"] = row["reviewed_at_utc"] }
+        if is_string(row["status"]) {
+            entry["status"] = row["status"]
+            entry["scheduled_date"] = if is_string(row["scheduled_date"]) { row["scheduled_date"] } else { None }
+            entry["scheduled_time"] = if is_string(row["scheduled_time"]) { row["scheduled_time"] } else { None }
+        }
+        entries = push(entries, entry)
+    }
+    return map { "schema": 1, "entries": entries }
 }
 
 fn date_offset(date: String, days: Int) -> String {

@@ -31,7 +31,9 @@ The worker checks [Open-Meteo availability metadata](https://open-meteo.com/en/d
 
 On a new volume, the application seeds the last verified snapshot from `seed/`. Failed forecast refreshes retain the last good version. Near-range inputs and extended tracks publish together under the same timestamp. Missing providers or levels are shown as unavailable, and truncated paths are not extrapolated. Each model has its own download timestamp. Publication metadata triggers the download but does not prove the exact model run used for every forecast hour. On the third Chicago calendar day after the scenario the worker stops requesting event forecasts and the map labels the data as archival. That is not confirmation that the operation took place.
 
-Reviewed notices live in `seed/official-updates.json` (newest first) and populate the public update log and `/data/official-updates.json`. Larri’s read-only cron checks primary agency sources every two hours and drafts changes for review; it cannot publish. After verifying a notice, add a new entry with a unique `id`, publication date, review timestamp, agency, headline, summary and direct source URL. For a schedule change use `status: "scheduled"` with `scheduled_date` (`YYYY-MM-DD`) and an explicitly announced `scheduled_time`, or `null` if none was announced. For a postponement without a new date or a cancellation, set `status` and leave `scheduled_date` null. Leave `status` unset on non-schedule notices. Deploy the reviewed branch to publish the log entry. The date automatically drives the forecast request window and map labels; older paths are not shown for a new date. This is not an emergency-alert system.
+The timeline and the forecast worker read reviewed notices from `official_events` in the same SQLite database as the forecast snapshots. The source-page watcher and Larri’s scheduled review are read-only for this log; neither publishes notices. A schedule entry can change the forecast request window and map labels. A supporting entry cannot. This is not an emergency-alert system.
+
+See [Database and event publishing](db/README.md) for the `ntnt db` workflow and reviewed imports.
 
 ## Tests
 
@@ -45,9 +47,14 @@ Run the backend checks using the same image built by the quick start. These comm
 
 ```sh
 docker run --rm --platform linux/amd64 --network none iowa-plume-watch:local ntnt validate .
-docker run --rm --platform linux/amd64 --network none -v "$PWD/tests:/app/tests:ro" -e APP_DATABASE_PATH=/tmp/snapshots.db iowa-plume-watch:local ntnt run tests/snapshots.tnt
+docker run --rm --platform linux/amd64 --network none -v "$PWD/tests:/app/tests:ro" \
+  -e APP_DATABASE_PATH=/tmp/plume-test.db iowa-plume-watch:local sh -ec '
+    sh db/local-init.sh local
+    ntnt run tests/official-events.tnt
+    ntnt run tests/snapshots.tnt
+    ntnt run tests/updates.tnt
+  '
 docker run --rm --platform linux/amd64 --network none -v "$PWD/tests:/app/tests:ro" iowa-plume-watch:local ntnt run tests/forecast-feed.tnt
-docker run --rm --platform linux/amd64 --network none -v "$PWD/tests:/app/tests:ro" iowa-plume-watch:local ntnt run tests/updates.tnt
 ```
 
 For a browser smoke test against a fresh app-only instance, run `npm install --no-save --package-lock=false playwright`, `npx playwright install chromium`, then `PLUME_SEED_SCENARIO=1 node tests/browser-smoke.mjs`. Set `APP_URL` if you chose a different port. The full test commands and build checks are in [CI](.github/workflows/browser-smoke.yml).

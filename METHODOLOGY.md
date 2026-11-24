@@ -48,7 +48,7 @@ This is a comparison of deterministic forecasts, not a calibrated hurricane-styl
 
 A separate NTNT worker attempts updates every three hours. The website serves its local snapshot without waiting on upstream providers. **Failed model calls are omitted**; if all calls fail the site continues showing the previous snapshot, marked stale when its downloaded age exceeds nine hours. This is a forecast *refresh interval*, not real-time sensing or guaranteed update frequency.
 
-Government web pages are checked for *changed visible text*, a heuristic that can be fooled by page layout changes or by substantive updates embedded in PDF files or images. Changes must be **manually reviewed**; the source watcher never declares an all-clear or reports measured contamination. The event schedule remains in a manually verified JSON status file and must be changed with a direct authoritative link.
+Government web pages are checked for *changed visible text*, a heuristic that can be fooled by page layout changes or by substantive updates embedded in PDF files or images. Changes must be **manually reviewed**; the source watcher never declares an all-clear or reports measured contamination. The event schedule comes from reviewed notices in the application SQLite database and must be changed with a direct authoritative link.
 
 ## Critical unknowns
 
