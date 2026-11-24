@@ -63,11 +63,16 @@
           <div class="official-meta" id="official-reviewed">Agency notice published {{published_label}}</div>
         </article>
         <div class="official-history" id="official-update-log">
-          <h3>Notable events and official notices</h3>
-          <p class="section-note">Newest first. A date in a past notice is not confirmation the operation will go ahead.</p>
-          <ol aria-label="Notable events and official notices">
+          <h3 id="event-timeline-heading">Event timeline</h3>
+          <p class="section-note">Oldest first, by publication date. A date in a past notice is not confirmation the operation will go ahead.</p>
+          <div class="event-filters" role="group" aria-label="Filter the event timeline" hidden>
+            <button type="button" aria-controls="event-timeline" aria-pressed="false" data-events="notable">Notable events</button>
+            <button type="button" aria-controls="event-timeline" aria-pressed="true" data-events="all">All events</button>
+          </div>
+          <p class="event-view-note" id="event-view-note" role="status"></p>
+          <ol id="event-timeline" role="list" aria-labelledby="event-timeline-heading">
             {{#for item in updates}}
-            <li>
+            <li data-tier="{{item.tier}}">
               <div class="event-meta"><time datetime="{{item.notice.published_date}}">{{item.date_label}}</time><span>{{item.notice.agency}}</span></div>
               <div class="event-body"><h4>{{item.notice.headline}}</h4><p>{{item.notice.summary}}</p><a href="{{item.notice.source_url}}" aria-label="Read source: {{item.notice.headline}}" target="_blank" rel="noopener noreferrer">Read source <span aria-hidden="true">↗</span></a></div>
             </li>

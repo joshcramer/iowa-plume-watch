@@ -119,8 +119,17 @@ input:focus-visible,select:focus-visible,button:focus-visible,a:focus-visible{ou
 .schedule-notice .official-meta{margin-top:10px;padding-top:12px;border-top:1px solid #35545d}
 .official-history h3{font-size:clamp(1.2rem,2vw,1.45rem);font-weight:650;line-height:1.25;margin:0}
 .official-history .section-note{margin:7px 0 14px;font-size:.83rem}
-.official-history ol{list-style:none;padding:0;margin:0}
-.official-history li{display:grid;grid-template-columns:minmax(85px,1fr) minmax(0,4fr);gap:16px;border-top:1px solid var(--line);padding:16px 0 10px}
+.event-filters{display:flex;flex-wrap:wrap;gap:6px}
+.event-filters button{min-height:44px;padding:7px 13px;border:1px solid #3c5d69;border-radius:7px;background:var(--surface);color:#bed4dc;font:650 .84rem var(--font-ui);cursor:pointer}
+.event-filters button:hover{border-color:#88c6c7}
+.event-filters button[aria-pressed=true]{background:#c4ede8;border-color:#c4ede8;color:#143239}
+.event-view-note{color:#abc3cd;font-size:.76rem;margin:6px 0 12px}
+.event-view-note:empty{display:none}
+.official-history ol{list-style:none;padding:0;margin:4px 0 0 5px}
+.official-history li{position:relative;display:grid;grid-template-columns:minmax(85px,1fr) minmax(0,4fr);gap:16px;border-inline-start:1px solid #3a626c;padding:12px 0 12px 17px}
+.official-history li::before{content:'';position:absolute;inset-inline-start:-5px;top:16px;width:9px;height:9px;border:1px solid #86b3bf;border-radius:50%;background:var(--bg)}
+.official-history li[data-tier=notable]::before{background:#a2e6e1;border-color:#a2e6e1}
+.event-filters[hidden],.official-history li[hidden]{display:none}
 .event-meta{display:flex;flex-direction:column;gap:4px;align-items:start}
 .event-meta time{color:#aadee2;font-size:.83rem;font-weight:750;font-variant-numeric:tabular-nums;letter-spacing:.025em}
 .event-meta span{color:#abc3cd;font-size:.75rem;line-height:1.35}
@@ -133,6 +142,6 @@ input:focus-visible,select:focus-visible,button:focus-visible,a:focus-visible{ou
 @media(max-width:760px){.official-layout{grid-template-columns:minmax(0,1fr)}}
 @media(max-width:520px){
   .official-history li{grid-template-columns:1fr;gap:6px}
-  .event-meta{flex-direction:row;gap:10px;align-items:baseline}
+  .event-meta{flex-direction:row;flex-wrap:wrap;gap:4px 10px;align-items:baseline}
   .event-body a,.schedule-link,.source-watch-body a{min-height:44px}
 }

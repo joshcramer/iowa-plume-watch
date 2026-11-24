@@ -13,6 +13,12 @@ Use a local Compose project and its own volume. Never point tests at the hosted 
 - `worker.tnt`, `jobs/`, and `lib/` handle background refreshes. Read the [jobs recipe](docs/recipes/jobs/RECIPE.md) before changing dispatch. A failed job must raise so the queue retries it; returning `Err` is not enough.
 - `seed/` provides initial local data. `seed/official-updates.json` is a human-reviewed log, not an automatic result of the source watcher. Keep structured dates in ISO format and dates in public-facing headline and summary copy in MM/DD/YY. Preserve the distinction between reviewed notices and modeled wind paths. Read [METHODOLOGY.md](METHODOLOGY.md) before changing map interpretation or copy.
 
+## Add an event to the timeline
+
+Add one entry to `seed/official-updates.json` with a unique `id`, the source's `published_date` (`YYYY-MM-DD`), `agency`, `headline`, `summary`, and a direct `source_url`. Keep the file newest first, including the best-supported order within a day. The site displays the timeline oldest first. A backfilled entry belongs on its original publication date, not the date it was added to the log.
+
+Set `notable: true` for a turning point (for example, a schedule announcement, a change of plans, a court decision, or a public statement that changes what is known). Use `notable: false` for supporting developments that belong only in **All events**. This flag never changes the schedule. Set `status` or change schedule fields only for a reviewed notice that actually changes the authoritative schedule. Verify the source and publish the log edit separately from automated checks; those checks never add public entries.
+
 ## Verify changes
 
 - Use the checksum-pinned NTNT runtime in `Dockerfile`, not an arbitrary host binary. See [README → Tests](README.md#tests) for the exact local commands and [.github/workflows/browser-smoke.yml](.github/workflows/browser-smoke.yml) for CI.

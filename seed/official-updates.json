@@ -3,6 +3,7 @@
   "entries": [
     {
       "id": "presidential-statement-117667060434959655",
+      "notable": true,
       "published_date": "2026-11-23",
       "reviewed_at_utc": "2026-11-23T21:49:31Z",
       "agency": "President Donald Trump · Public statement",
@@ -12,6 +13,7 @@
     },
     {
       "id": "army-296990",
+      "notable": true,
       "published_date": "2026-11-22",
       "reviewed_at_utc": "2026-11-23T14:00:00Z",
       "agency": "U.S. Army",
@@ -24,6 +26,7 @@
     },
     {
       "id": "army-296926",
+      "notable": true,
       "published_date": "2026-11-19",
       "agency": "U.S. Army",
       "status": "scheduled",
@@ -35,6 +38,7 @@
     },
     {
       "id": "army-296772",
+      "notable": true,
       "published_date": "2026-11-15",
       "agency": "U.S. Army",
       "status": "scheduled",

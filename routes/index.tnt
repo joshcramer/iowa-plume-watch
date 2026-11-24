@@ -2,7 +2,7 @@ import { response } from "std/http/server"
 import { render_page } from "lib/layout"
 import { official_log, schedule_from } from "lib/official"
 import { parse_iso, format_in } from "std/time"
-import { push } from "std/collections"
+import { push, reverse, sort } from "std/collections"
 
 fn us_date(date) {
     if !is_string(date) { return "" }
@@ -15,8 +15,14 @@ fn get(req) {
     let date = status["scenario_date"]
     let heading = if is_string(date) { us_date(date) } else { status["headline"] ?? "No verified date" }
     let mut updates = []
-    for entry in entries {
-        updates = push(updates, map { "notice": entry, "date_label": us_date(entry["published_date"]) })
+    // The reviewed schedule still reads the newest-first log. The timeline is a separate view.
+    for entry in sort(reverse(entries), "published_date") {
+        let is_notable = entry["notable"] ?? false
+        updates = push(updates, map {
+            "notice": entry,
+            "date_label": us_date(entry["published_date"]),
+            "tier": if is_notable { "notable" } else { "context" }
+        })
     }
     let page = render_page(map {
         "title": "Iowa Plume Watch · Wind transport explorer",

@@ -43,10 +43,27 @@ try {
   }
   const reviewed=await page.request.get(`${origin}/data/official-updates.json`).then(r=>r.json());
   assert.ok(reviewed.entries.length>0,'Public update log should have reviewed notices');
-  assert.equal(await page.locator('#official-update-log li').count(),reviewed.entries.length);
-  assert.equal(await page.locator('#official-update-log li a').first().getAttribute('href'),reviewed.entries[0].source_url);
-  const dates=await page.locator('#official-update-log time').evaluateAll(nodes=>nodes.map(node=>[node.getAttribute('datetime'),node.textContent.trim()]));
-  assert.deepEqual(dates,reviewed.entries.map(({published_date:iso})=>[iso,`${iso.slice(5,7)}/${iso.slice(8,10)}/${iso.slice(2,4)}`]));
+  const log=page.locator('#official-update-log'), rows=log.locator('li:visible');
+  const notable=log.getByRole('button',{name:'Notable events',exact:true}), all=log.getByRole('button',{name:'All events',exact:true});
+  await notable.waitFor({state:'visible',timeout:3000});
+  const ordered=reviewed.entries.slice().reverse().sort((a,b)=>a.published_date.localeCompare(b.published_date));
+  const dates=()=>rows.locator('time').evaluateAll(nodes=>nodes.map(node=>[node.getAttribute('datetime'),node.textContent.trim()]));
+  const datesFor=entries=>entries.map(({published_date:iso})=>[iso,`${iso.slice(5,7)}/${iso.slice(8,10)}/${iso.slice(2,4)}`]);
+  assert.equal(await notable.getAttribute('aria-pressed'),'true');
+  assert.deepEqual(await dates(),datesFor(ordered.filter(entry=>entry.notable===true)));
+  const scheduleBefore=await page.locator('#official-heading').textContent();
+  const releaseBefore=await page.locator('#release-select').inputValue();
+  await all.click();
+  assert.equal(await all.getAttribute('aria-pressed'),'true');
+  assert.deepEqual(await dates(),datesFor(ordered));
+  assert.deepEqual(await rows.locator('a').evaluateAll(links=>links.map(link=>link.getAttribute('href'))),ordered.map(entry=>entry.source_url));
+  assert.equal(await page.locator('#official-heading').textContent(),scheduleBefore);
+  assert.equal(await page.locator('#release-select').inputValue(),releaseBefore);
+  await notable.focus();
+  await page.keyboard.press('Enter');
+  assert.equal(await notable.getAttribute('aria-pressed'),'true');
+  assert.deepEqual(await dates(),datesFor(ordered.filter(entry=>entry.notable===true)));
+  await page.evaluate(()=>window.scrollTo({top:0,behavior:'instant'}));
   for(const text of ['How the maps are made','Data Origins','Review the source code']){
     assert.equal(await page.getByRole('heading',{name:text,exact:true}).count(),1);
   }
