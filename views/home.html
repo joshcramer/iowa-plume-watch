@@ -1,43 +1,67 @@
     <section class="shell section" id="forecast" data-scenario-date="{{official.scenario_date}}" data-archive-on="{{official.archive_on}}">
       <div class="forecast-intro">
-        <div><div class="kicker">MIDDLETOWN, IOWA</div><h1>Wind transport explorer</h1></div>
-        <p class="snapshot-line"><span>Fetched <strong id="updated-at">—</strong></span></p>
+        <div><div class="kicker">MIDDLETOWN, IOWA</div><h1>Air sampling and wind</h1></div>
+        <p class="snapshot-line" data-map-view="wind" hidden><span>Forecast fetched <strong id="updated-at">—</strong></span></p>
       </div>
 
       {{#if has_post_event}}
       <a class="post-event-jump schedule-link" href="#post-detonation">Post-detonation update and video <span aria-hidden="true">↓</span></a>
       {{/if}}
-      <noscript><p class="forecast-caution">The interactive map needs JavaScript. Official notices are available below.</p></noscript>
-      <div class="forecast-layout">
+      <noscript><p class="forecast-caution">The interactive map needs JavaScript. <a href="https://experience.arcgis.com/experience/1ddcf8b9d8314971b00dac8893ae9cd6">Open the EPA dashboard</a> for readings. Official notices are available below.</p></noscript>
+      <div class="map-tabs event-filters" role="tablist" aria-label="Map view" hidden>
+        <button type="button" id="sampling-tab" role="tab" aria-selected="true" aria-controls="map-view" data-view="sampling">EPA sampling</button>
+        <button type="button" id="wind-tab" role="tab" aria-selected="false" aria-controls="map-view" tabindex="-1" data-view="wind">Wind forecast</button>
+      </div>
+      <div id="map-view" role="tabpanel" aria-labelledby="sampling-tab" tabindex="0">
+      <div class="forecast-layout" data-active-view="sampling">
         <div class="map-panel">
-          <div class="map-heading"><div class="map-heading-title">TRANSPORT MAP <span class="map-type">/ Wind-driven paths only</span></div><div class="map-time" id="map-label">Hypothetical release</div></div>
-          <div id="map" role="img" aria-label="Map of the Iowa Army Ammunition Plant and forecast wind trajectories"></div>
-          <div class="map-footer" aria-label="Map legend">
+          <div class="map-heading" data-map-view="sampling"><div class="map-heading-title">AIR MONITORING <span class="map-type">/ Lead in air</span></div><div class="map-time">Latest posted readings</div></div>
+          <div class="map-heading" data-map-view="wind" hidden><div class="map-heading-title">WIND TRANSPORT</div><div class="map-time" id="map-label">Reported detonation time</div></div>
+          <div id="map" role="region" aria-label="Map of EPA air monitoring stations"></div>
+          <div class="map-footer sampling-legend" data-map-view="sampling" aria-label="Sampling map legend">
+            <span><i class="legend-dot" aria-hidden="true"></i>Detonation site</span>
+            <span><i class="sampling-key below" aria-hidden="true"></i>Below 32 µg/m³</span>
+            <span><i class="sampling-key at-or-above" aria-hidden="true"></i>At or above 32 µg/m³</span>
+            <span><i class="sampling-key missing" aria-hidden="true"></i>No comparable reading</span>
+          </div>
+          <div class="map-footer" data-map-view="wind" aria-label="Wind map legend" hidden>
             <span><i class="legend-dot" aria-hidden="true"></i>Detonation site</span>
             <span><i class="legend-line" aria-hidden="true"></i>Selected model’s paths · Central time</span>
             <div id="spread-legend" class="spread-legend" hidden>
               <i aria-hidden="true"></i><div><strong>Wind model spread at 10 m</strong> <span id="spread-coverage"></span><small>Shows where the models differ. Not a probability or lead exposure area.</small></div>
             </div>
           </div>
-          <div class="trajectory-timeline" aria-label="Hypothetical release transport timeline">
+          <div class="trajectory-timeline" data-map-view="wind" aria-label="Modeled wind transport timeline" hidden>
             <div class="timeline-top">
               <div>
-                <div class="timeline-kicker">TIME AFTER HYPOTHETICAL RELEASE</div>
+                <div id="timeline-start" class="timeline-kicker">TIME AFTER REPORTED DETONATION</div>
                 <output id="timeline-clock" for="timeline-slider" class="timeline-clock" aria-live="off">+4h</output>
               </div>
               <button type="button" class="timeline-play" id="timeline-play" aria-label="Play time progression">▶ Play</button>
             </div>
-            <input type="range" id="timeline-slider" class="timeline-slider" min="0" max="8" step="0.25" value="4" aria-label="Elapsed time since hypothetical detonation">
+            <input type="range" id="timeline-slider" class="timeline-slider" min="0" max="8" step="0.25" value="4" aria-labelledby="timeline-start">
             <div id="timeline-ticks" class="timeline-ticks" aria-hidden="true"><span>+0h</span><span>+2h</span><span>+4h</span><span>+6h</span><span>+8h</span></div>
             <p class="timeline-note">Drag the slider to move the markers. Fainter lines show later positions.</p>
           </div>
-          <div id="overlay-status" class="map-overlay-status" role="status" aria-live="polite">Loading forecast wind paths…</div>
+          <div id="overlay-status" class="map-overlay-status" data-map-view="wind" role="status" hidden>Loading forecast wind paths…</div>
+          <p class="map-overlay-status sampling-note" data-map-view="sampling">Readings apply only to the marked locations and times. Blank areas are unmeasured on this map, not cleared.</p>
           <div id="map-fallback" class="map-fallback" hidden>Base map could not load.</div>
         </div>
-        <aside class="control-panel"><div class="control-title">SCENARIO CONTROLS</div>
+        <aside class="control-panel sampling-panel" data-map-view="sampling" aria-labelledby="sampling-heading">
+          <div class="control-title" id="sampling-heading">EPA STATION READINGS</div>
+          <p class="sampling-status" id="sampling-status" role="status">Loading EPA station readings…</p>
+          <ul class="sampling-list" id="sampling-list" aria-label="Latest EPA readings per station"></ul>
+          <p class="section-note">32 µg/m³ is the short-term lead screening level displayed by EPA (DOE PAC-1). A reading below it is not an all-clear. These are air monitor readings, not soil or lab results.</p>
+          <a class="schedule-link" href="https://experience.arcgis.com/experience/1ddcf8b9d8314971b00dac8893ae9cd6">Open the EPA dashboard ↗</a>
+        </aside>
+        <aside class="control-panel" data-map-view="wind" hidden><div class="control-title">WIND FORECAST</div>
+          <p class="event-anchor" id="event-anchor"><strong>11/25/26 · ~9:00 a.m. CST</strong><br><a href="https://www.kwqc.com/2026/11/25/what-know-about-us-armys-lead-azide-detonation-how-watch/">Reported detonation time ↗</a></p>
+          <details class="wind-scenarios"><summary>Explore a different start</summary>
           <label class="field-label" for="date-select">Hypothetical release date</label><select id="date-select" aria-describedby="date-help" disabled><option value="">{{scenario_label}} · Army notice</option></select>
           <div class="microcopy" id="date-help">Alternate dates depend on model coverage.</div>
-          <label class="field-label" for="release-select">Hypothetical release time <span id="release-date">Central time</span></label><select id="release-select"><option value="9">9:00 a.m.</option><option value="12" selected>Noon</option><option value="15">3:00 p.m.</option></select>
+          <label class="field-label" for="release-select">Hypothetical release time <span id="release-date">Central time</span></label><select id="release-select"><option value="9" selected>9:00 a.m.</option><option value="12">Noon</option><option value="15">3:00 p.m.</option></select>
+          <button type="button" class="event-more" id="reset-wind">Return to reported time</button>
+          </details>
           <label class="field-label" for="model-select">Forecast model</label><select id="model-select"><option value="">No model data yet</option></select>
           <label class="field-label" for="horizon-select">Track length <span id="horizon-help">longer = less certain</span></label>
           <select id="horizon-select"><option value="8" selected>8 hours · local detail</option><option value="24">24 hours · regional screening</option><option value="48">48 hours · regional screening</option></select>
@@ -47,11 +71,14 @@
           <div class="readout-foot">Atmospheric pressure levels are elevations above <em>sea level</em>, not the ground. Heights vary with weather.</div>
         </aside>
       </div>
-      <div class="metrics" aria-label="Forecast details"><div class="metric"><div class="metric-label">Scenario date</div><div class="metric-value" id="event-date">{{scenario_label}}</div><div class="metric-foot">Hypothetical release times</div></div><div class="metric"><div class="metric-label">Forecast data</div><div class="metric-foot" id="updated-foot">Awaiting data</div></div><div class="metric"><div class="metric-label">Models available</div><div class="metric-value" id="model-count">—</div><div class="metric-foot">GFS · RRFS · ECMWF</div></div></div>
-      <div class="model-error" id="error-message" hidden></div>
-      <div class="microcopy">Trajectory calculations use spatially and temporally interpolated wind vectors at a fixed level (15-minute RK2 integration). They omit plume rise, vertical motion, turbulence, settling, deposition, chemistry, precipitation scavenging and exposure.</div>
+      <div data-map-view="wind" hidden>
+        <div class="metrics wind-metrics" aria-label="Forecast details"><div class="metric"><div class="metric-label">Start date</div><div class="metric-value" id="event-date">11/25/26</div><div class="metric-foot" id="event-date-note">Reported detonation</div></div><div class="metric"><div class="metric-label">Forecast data</div><div class="metric-foot" id="updated-foot">Awaiting data</div></div><div class="metric"><div class="metric-label">Models available</div><div class="metric-value" id="model-count">—</div><div class="metric-foot">GFS · RRFS · ECMWF</div></div></div>
+        <div class="model-error" id="error-message" hidden></div>
+        <div class="microcopy">Trajectory calculations use spatially and temporally interpolated wind vectors at a fixed level (15-minute RK2 integration). They omit plume rise, vertical motion, turbulence, settling, deposition, chemistry, precipitation scavenging and exposure.</div>
+      </div>
+      </div>
     </section>
-    <section class="shell section winds-section" id="winds"><div class="section-header"><div><div class="kicker">02 / VERTICAL STRUCTURE</div><h2>Winds change with altitude.</h2><p>Compare modeled wind directions and speeds at the release point. “From” follows meteorological convention; the trajectory goes the other way.</p></div></div>
+    <section class="shell section winds-section" id="winds" data-map-view="wind" hidden><div class="section-header"><div><div class="kicker">02 / VERTICAL STRUCTURE</div><h2>Winds change with altitude.</h2><p>Compare modeled wind directions and speeds at the release point. “From” follows meteorological convention; the trajectory goes the other way.</p></div></div>
       <div class="winds-card"><div class="winds-head"><span>WIND LEVEL</span><span>FORECAST WIND (FROM)</span><span>PARCEL MOVEMENT (TOWARD)</span></div><div id="wind-rows" class="wind-rows"><div class="empty-winds">Forecast winds will appear after the first successful scheduled update.</div></div></div>
       <p class="section-note">Pressure heights are approximations. The 925 hPa and 850 hPa levels are typically around 0.8 km and 1.5 km above sea level, respectively. For an actual explosion, material could rise or fall between these layers; this site does not compute that behavior.</p>
     </section>

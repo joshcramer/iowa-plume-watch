@@ -13,7 +13,7 @@ enable_csp(map {
     "style-src": "'self'",
     "img-src": "'self' data: https://tile.openstreetmap.org",
     "font-src": "'self'",
-    "connect-src": "'self'",
+    "connect-src": "'self' https://services.arcgis.com/cJ9YHowT8TU7DUyn/arcgis/rest/services/IAAAP_Xact_Data_Public_Viewer/FeatureServer/0/query",
     "object-src": "'none'",
     "frame-src": "'self' https://www.facebook.com/plugins/video.php",
     "frame-ancestors": "'none'",

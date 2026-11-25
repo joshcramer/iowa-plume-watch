@@ -2,9 +2,15 @@
 
 ## Scientific scope
 
-This is an **independent horizontal wind-transport screening tool**, not a validated regulatory plume or lead-deposition model. All forecast paths are hypothetical because actual release timing, plume height and aerosol properties are not measured here. The graph does not depict exposure, contamination, probability, plume width or lead mass.
+The site keeps EPA monitoring results and **independent horizontal wind transport** in separate map tabs. Wind paths are idealized parcel trajectories, not a validated plume or lead-deposition model. They do not depict exposure, contamination, probability, plume width or lead mass.
 
 A true hazard assessment requires independently verified source-term parameters and an appropriate 3-D dispersion/deposition model such as HYSPLIT driven by complete meteorological fields and evaluated against air/soil measurements. This project does **not** run HYSPLIT; reference: [NOAA READY](https://www.ready.noaa.gov/HYSPLIT_traj.php).
+
+## EPA air monitoring
+
+The sampling tab reads the public Xact feature layer used by the [EPA Region 7 dashboard](https://experience.arcgis.com/experience/1ddcf8b9d8314971b00dac8893ae9cd6). It displays the newest published reading per station from the 120 most recent records, using the source's measurement time (shown in Central time) and preserving reported precision. A reported zero is shown as zero; missing values or unrecognized units are not converted to zero. The source does not attach a validation flag to these records. It may update or revise values. On a failed refresh, any previous readings keep their original measurement times.
+
+The map marks readings at or above the dashboard’s **32 µg/m³ short-term screening level (DOE PAC-1)** in red. That comparison is not a safety, regulatory, or individual exposure determination. A lower reading is not an all-clear. The source provides points, not a measured boundary; the map does not interpolate concentrations, characterize areas between stations, or combine air readings with soil or laboratory samples.
 
 ## Forecast data
 
@@ -36,7 +42,7 @@ Here u is the eastward and v the northward speed. Perform **bilinear** geographi
 
 The point is advanced on a local tangent-plane approximation: one degree latitude ~111.195 km, one degree longitude ~111.195 km × cos(latitude). This is a small-region approximation; users must not extrapolate it globally. Integration stops when winds leave the sampled grid or forecast-time span.
 
-Three hypothetical release start times (9:00, 12:00, 15:00 CST) enable schedule sensitivity. The website does not assert that any of those is the actual detonation time.
+The wind tab opens at about **9:00 a.m. CST on 11/25/26**, the approximate detonation time [reported by KWQC](https://www.kwqc.com/2026/11/25/what-know-about-us-armys-lead-azide-detonation-how-watch/). Other start times can be selected as hypothetical scenarios. Starting the model at the reported hour does not turn the paths into observations.
 
 ## Wind model spread on the map
 
@@ -56,14 +62,14 @@ Government web pages are checked for *changed visible text*, a heuristic that ca
 - **Vertical evolution:** unknown initial plume rise, buoyancy, shear and mixed-layer interaction, downward motion and turbulence.
 - **Deposition:** gravitational settling, wet scavenging, impaction, resuspension and environmental retention have not been modeled.
 - **Meteorological uncertainty:** coarse point-grid interpolation, deterministic models, cycle-to-cycle drift and missing mesoscale features.
-- **Observational validation:** no air concentration, filter sample, soil sample or field measurements are ingested or inferred.
+- **Observational validation:** EPA air measurements are displayed separately and are not used to fit or validate the wind trajectories.
 - **Official map updates:** the forecast model is not a substitute for the Army's updated dispersion/deposition maps released closer to the event.
 
 The presence or absence of a modeled wind path near a location cannot prove exposure or safety. Always consult official agencies and post-event measurements for action decisions.
 
 ## Reproducibility
 
-Review the native worker and collectors under `jobs/` and `lib/`, client map code in `public/js/`, and the tests referenced in the README. There are no user accounts or tracking. The browser requests map tiles and same-origin forecast and status JSON.
+Review the native worker and collectors under `jobs/` and `lib/`, client map code in `public/js/`, and the tests referenced in the README. The browser requests map tiles, the public EPA layer from ArcGIS, and same-origin forecast and status JSON.
 
 ## Regional trajectories: 24 and 48 hours
 

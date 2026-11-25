@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
+import { STATION_QUERY } from '../public/js/sampling.js';
 
 const origin=process.env.APP_URL || 'http://127.0.0.1:8080';
 const browser = await chromium.launch({headless:true,args:['--no-sandbox']});
@@ -12,6 +13,9 @@ async function matchSeedScenario(page){
 }
 
 const page = await browser.newPage({viewport:{width:1280,height:950},deviceScaleFactor:1});
+const stationReading=(id,amount,x,y)=>({geometry:{x,y},attributes:{objectid:id,Air_Station_ID:`AS0${id}`,Mon_Date_Time:1795621200000,Mon_Results:amount,Mon_Units:'µg/m3'}});
+const sampleFixture={spatialReference:{wkid:4326},features:[stationReading(1,0,-91.3,40.79),stationReading(2,32,-91.43,40.7),stationReading(3,null,-91.6,40.65)]};
+await page.route(url=>url.href===STATION_QUERY,route=>route.fulfill({json:sampleFixture,headers:{'access-control-allow-origin':'*'}}));
 // Do not let JSON key order decide which weather model opens first.
 await page.route('**/data/forecast.json', async route=>{
   const response=await route.fetch();
@@ -35,6 +39,22 @@ try {
   assert.equal(await credit.textContent(),'Designed by Larri and powered by ntnt.');
   assert.equal(await credit.getByRole('link',{name:'Larri',exact:true}).getAttribute('href'),'https://larri.design/');
   assert.equal(await credit.getByRole('link',{name:'ntnt',exact:true}).getAttribute('href'),'https://ntnt-lang.org/');
+  const sampling=page.getByRole('tab',{name:'EPA sampling'}), wind=page.getByRole('tab',{name:'Wind forecast'});
+  assert.equal(await sampling.getAttribute('aria-selected'),'true');
+  await page.locator('.sampling-station').first().waitFor({timeout:12000});
+  assert.equal(await page.locator('.sampling-station').count(),3);
+  assert.equal(await page.locator('.sampling-station.sampling-at-or-above').getAttribute('fill'),'#c5263d');
+  assert.equal(await page.locator('.sampling-station.sampling-missing').count(),1);
+  assert.equal(await page.locator('.forecast-path:visible').count(),0);
+  assert.equal(await page.locator('#horizon-select').isVisible(),false);
+  assert.match(await page.locator('#sampling-list').textContent(),/0 µg\/m³.*11\/25\/26.*9:40 AM CST/);
+  await page.getByRole('button',{name:/Xact station AS02/}).click();
+  assert.match(await page.locator('.leaflet-popup-content').textContent(),/32 µg\/m³.*At or above screening level/);
+  await sampling.focus();
+  await page.keyboard.press('ArrowRight');
+  assert.equal(await wind.getAttribute('aria-selected'),'true');
+  assert.equal(await page.locator('.sampling-station').count(),0);
+  assert.match(await page.locator('#event-anchor').textContent(),/11\/25\/26.*9:00 a.m. CST/);
   await page.waitForFunction(
     () => document.querySelectorAll('.wind-path-svg .forecast-path').length >= 2,
     null,{timeout:25000}
@@ -145,12 +165,12 @@ try {
   await page.mouse.wheel(0,120);
   await page.waitForFunction(d=>document.querySelector('.forecast-path')?.getAttribute('d')===d,beforeZoom);
   assert.equal(await page.locator('#timeline-slider').inputValue(),'4');
-  assert.match(await page.locator('#timeline-clock').textContent(),/\+4h.*11\/25\/26.*4:00 PM CT/);
+  assert.match(await page.locator('#timeline-clock').textContent(),/\+4h.*11\/25\/26.*1:00 PM CT/);
   const markerBefore=await page.locator('.wind-path-svg .selected-time-marker').first().locator('circle').first().getAttribute('cx');
   await page.locator('#timeline-slider').fill('2');
   const markerAfter=await page.locator('.wind-path-svg .selected-time-marker').first().locator('circle').first().getAttribute('cx');
   assert.notEqual(markerBefore,markerAfter,'Scrubber must move selected time position on forecast lines');
-  assert.match(await page.locator('#timeline-clock').textContent(),/\+2h.*2:00 PM CT/);
+  assert.match(await page.locator('#timeline-clock').textContent(),/\+2h.*11:00 AM CT/);
   await page.locator('#timeline-slider').fill('4');
 
   // Hover inspection at the mid-point of a visible active trajectory.
@@ -189,6 +209,7 @@ try {
   assert.ok(fonts.length && fonts.every(font=>font===fonts[0] && font.includes('system-ui')),'Controls and headings share the system sans family');
   await page.locator('#map').screenshot({path:'browser-map-default.png'});
   const first=await page.locator('.wind-path-svg .forecast-path').first().getAttribute('d');
+  await page.getByText('Explore a different start',{exact:true}).click();
   await page.selectOption('#release-select','15');
   await page.selectOption('#horizon-select','24');
   assert.equal(await page.locator('#timeline-slider').getAttribute('max'),'24');
@@ -223,7 +244,12 @@ try {
     const mobile=await browser.newPage({viewport:{width:390,height:844},deviceScaleFactor:1});
   try{
     await matchSeedScenario(mobile);
+    await mobile.route(url=>url.href===STATION_QUERY,route=>route.abort());
     await mobile.goto(`${origin}/`,{waitUntil:'domcontentloaded'});
+    assert.equal(await mobile.getByRole('tab',{name:'EPA sampling'}).getAttribute('aria-selected'),'true');
+    await mobile.getByText('EPA readings could not load.',{exact:false}).waitFor({timeout:12000});
+    assert.equal(await mobile.locator('.sampling-station').count(),0);
+    await mobile.getByRole('tab',{name:'Wind forecast'}).click();
     await mobile.waitForFunction(()=>document.querySelector('.forecast-path'),null,{timeout:25000});
     await checkForecastIntro(mobile);
     const clipBox=await mobile.locator('#post-detonation iframe').boundingBox();
@@ -264,6 +290,11 @@ try {
       assert.equal(await page.locator('#horizon-select').isEnabled(),true);
       assert.equal(await page.locator('#release-select').inputValue(),'9');
     }
+    await page.locator('#reset-wind').click();
+    assert.match(await page.locator('#timeline-start').textContent(),/REPORTED DETONATION/);
+    await sampling.click();
+    assert.equal(await page.locator('.sampling-station').count(),3);
+    assert.equal(await page.locator('.forecast-path:visible').count(),0);
     assert.deepEqual(errors,[],'No uncaught JavaScript errors');
   console.log('PASS browser map overlay and controls:',details);
 } finally {

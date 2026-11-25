@@ -153,3 +153,28 @@ input:focus-visible,select:focus-visible,button:focus-visible,a:focus-visible{ou
   .event-meta{flex-direction:row;flex-wrap:wrap;gap:4px 10px;align-items:baseline}
   .event-body a,.schedule-link,.source-watch-body a{min-height:44px}
 }
+
+/* Map tabs share a basemap, never their data layers. */
+.map-tabs{margin:5px 0 12px}
+.map-tabs button[aria-selected=true]{background:#c4ede8;border-color:#c4ede8;color:#143239}
+.map-tabs button:focus-visible,.sampling-row:focus-visible,.wind-scenarios summary:focus-visible,#map-view:focus-visible{outline:2px solid var(--cyan);outline-offset:3px}
+[data-map-view][hidden],.forecast-layout[data-active-view=sampling] .wind-path-svg{display:none}
+.wind-metrics{margin-top:14px}
+.sampling-panel .control-title{margin-bottom:6px}
+.sampling-status{margin:0 0 14px;color:#abc3cd;font-size:.78rem}
+.sampling-list{list-style:none;padding:0;margin:0;display:grid;gap:7px}
+.sampling-row{width:100%;min-height:52px;display:grid;grid-template-columns:auto minmax(0,1fr);gap:2px 8px;align-items:baseline;text-align:left;color:var(--ink);background:var(--card);border:1px solid var(--line);border-inline-start:3px solid #238f9c;border-radius:8px;padding:8px 10px;font:600 .78rem/1.4 var(--font-ui)}
+button.sampling-row{cursor:pointer}
+button.sampling-row:hover{background:#153141}
+.sampling-row[data-category=at-or-above]{border-inline-start-color:#fa6577}
+.sampling-row[data-category=missing]{border-inline-start-color:#8697a7}
+.sampling-row b{text-align:right;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.sampling-row small{grid-column:1/-1;color:#a6c0cb;font-size:.72rem;font-weight:500}
+.sampling-key{display:inline-block;flex:none;width:10px;height:10px;border-radius:50%;border:1px solid #edf5f8}
+.sampling-key.below{background:#127b89}.sampling-key.at-or-above{background:#c5263d}.sampling-key.missing{background:#657382}
+.sampling-note{margin:0}
+.event-anchor{color:#d1e4e8;line-height:1.5;font-size:.89rem;margin:0 0 13px}
+.event-anchor a{font-size:.78rem;color:var(--cyan)}
+.wind-scenarios{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:0 10px 0;}
+.wind-scenarios summary{color:#bdd6e0;font-size:.83rem;line-height:1.4;font-weight:650;padding:12px 0;cursor:pointer}
+.wind-scenarios #reset-wind{margin:8px 0 10px}

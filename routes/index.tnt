@@ -27,8 +27,8 @@ fn get(req) {
         })
     }
     let page = render_page(map {
-        "title": "Iowa Plume Watch · Wind transport explorer",
-        "description": "Independent wind-transport screening for Middletown, Iowa. Not a health advisory or exposure map.",
+        "title": "Iowa Plume Watch · Air sampling and wind",
+        "description": "EPA air monitoring readings and independent wind forecasts for Middletown, Iowa. Not a health advisory or exposure map.",
         "body_class": "page-home",
         "content": template("views/home.html", map { "official": status, "official_heading": heading, "published_label": us_date(status["published_date"]), "scenario_label": us_date(date), "updates": updates, "post_event": post_event, "has_post_event": is_string(post_event["id"]) })
     })

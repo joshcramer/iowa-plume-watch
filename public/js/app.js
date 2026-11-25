@@ -1,16 +1,17 @@
 import {PLANT,LEVELS,integrate,sourceWind,toCompass,validateSnapshot,localHour} from './trajectory.js?v=ntnt-8';
 import {createTransportOverlay,clockAt,usDate} from './overlay.js?v=ntnt-9';
 import {inspectNearestTrack,formatElapsed} from './inspect.js';
+import {createSamplingView,EVENT} from './sampling.js?v=1';
 
 const el=id=>document.getElementById(id);
 // Prefer GFS’s full set of wind levels, regardless of snapshot key order.
 const MODEL_ORDER=['gfs','rrfs','ecmwf'];
-const state={officialDate:el('forecast').dataset.scenarioDate||null,selectedDate:'',archiveOn:el('forecast').dataset.archiveOn||null,snapshot:null,model:'',release:12,duration:8,officialDuration:8,enabled:new Set(LEVELS.map(x=>x.key)),map:null,transportOverlay:null,displayTracks:[],elapsed:4,extended:null,viewKey:'',loadError:'',get scenarioDate(){return this.selectedDate||this.officialDate;}};
+const state={selectedDate:'',archiveOn:el('forecast').dataset.archiveOn||null,snapshot:null,model:'',release:EVENT.hour,duration:8,officialDuration:8,enabled:new Set(LEVELS.map(x=>x.key)),map:null,transportOverlay:null,displayTracks:[],elapsed:4,extended:null,viewKey:'',loadError:'',view:'sampling',get scenarioDate(){return this.selectedDate||EVENT.date;},get eventPinned(){return !this.selectedDate&&this.release===EVENT.hour;}};
 const centralTimestamp=new Intl.DateTimeFormat('en-US',{timeZone:'America/Chicago',month:'2-digit',day:'2-digit',year:'2-digit',hour:'numeric',minute:'2-digit',timeZoneName:'short'});
 const formatDate=iso=>iso?centralTimestamp.format(new Date(iso)):'—';
 const shortDate=date=>date?usDate.format(new Date(date+'T00:00:00Z')):'—';
 const chicagoToday=()=>new Intl.DateTimeFormat('sv-SE',{timeZone:'America/Chicago',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
-const activeSnapshot=()=>state.scenarioDate && state.snapshot?.event_date===state.officialDate ? state.snapshot : null;
+const activeSnapshot=()=>state.snapshot?.event_date===EVENT.date ? state.snapshot : null;
 const modelHasWind=(model,date,hour)=>Boolean(date && model?.available_levels?.some(key=>sourceWind(model,key,hour,date)));
 
 const escapeText=str=>String(str??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -91,6 +92,7 @@ function createHoverInspector(map){
   root.append(panel,pointer);
   function hide(){panel.hidden=true;pointer.hidden=true;}
   function examine(event){
+    if(state.view!=='wind')return;
     if(event.pointerType==='touch'&&event.type==='pointermove')return;
     const box=root.getBoundingClientRect();
     const x=event.clientX-box.left,y=event.clientY-box.top;
@@ -146,7 +148,7 @@ function makeMap(){
   baseTiles.on('tileerror',()=>{
     if(++consecutiveTileErrors>=3){
       el('map-fallback').hidden=false;
-      el('map-fallback').textContent='OpenStreetMap basemap tiles could not load. Check your network or content blocker. Trajectories remain modeled wind paths, not contamination or hazard boundaries.';
+      el('map-fallback').textContent='OpenStreetMap basemap tiles could not load. Readings or wind paths may still be available.';
     }
   });
   baseTiles.addTo(map);
@@ -172,6 +174,10 @@ function installControls(){
     updateModelOptions();safeRender();
   });
   el('release-select').addEventListener('change',e=>{pauseTimeline();state.release=Number(e.target.value);updateModelOptions();safeRender();});
+  el('reset-wind').addEventListener('click',()=>{
+    pauseTimeline();state.release=EVENT.hour;state.selectedDate='';state.duration=state.officialDuration;
+    el('release-select').value=String(EVENT.hour);updateDateOptions();updateModelOptions();safeRender();
+  });
   el('horizon-select').addEventListener('change',e=>{
     pauseTimeline();
     state.duration=Number(e.target.value);
@@ -180,6 +186,37 @@ function installControls(){
     safeRender();
   });
   el('model-select').addEventListener('change',e=>{state.model=e.target.value;safeRender();});
+}
+function installMapViews(sampling){
+  const tabs=[...document.querySelectorAll('.map-tabs [data-view]')];
+  const panels=[...document.querySelectorAll('[data-map-view]')];
+  function select(tab){
+    pauseTimeline();state.hoverInspector?.hide();state.view=tab.dataset.view;
+    const wind=state.view==='wind';
+    for(const item of tabs){item.setAttribute('aria-selected',String(item===tab));item.tabIndex=item===tab?0:-1;}
+    for(const panel of panels)panel.hidden=panel.dataset.mapView!==state.view;
+    el('map-view').setAttribute('aria-labelledby',tab.id);
+    el('map').setAttribute('aria-label',wind?'Map of modeled wind trajectories':'Map of EPA air monitoring stations');
+    document.querySelector('.forecast-layout').dataset.activeView=state.view;
+    sampling.show(!wind);
+    if(wind){
+      state.viewKey='';
+      state.map?.setView([PLANT.lat,PLANT.lon],8,{animate:false});
+      safeRender();
+    }
+  }
+  for(const tab of tabs){
+    tab.addEventListener('click',()=>{if(tab.dataset.view!==state.view)select(tab);});
+    tab.addEventListener('keydown',e=>{
+      if(!['ArrowLeft','ArrowRight','Home','End'].includes(e.key))return;
+      e.preventDefault();
+      const next=e.key==='Home'?tabs[0]:e.key==='End'?tabs.at(-1):tabs.find(other=>other!==tab);
+      if(tab!==next)select(next);
+      next.focus();
+    });
+  }
+  tabs[0].parentElement.hidden=false;
+  select(tabs[0]);
 }
 function renderLevelControls(model){
   const supported=new Set(model?.available_levels??[]);
@@ -203,7 +240,9 @@ function renderHeader(){
   const day=shortDate(state.scenarioDate);
   el('event-date').textContent=day;
   el('release-date').textContent=state.scenarioDate?`${day} · CT`:'Central time';
-  el('map-label').textContent=state.scenarioDate?`${day} · ${state.release===12?'Hypothetical noon':state.release<12?`${state.release}:00 a.m.`:`${state.release-12}:00 p.m.`} release`:'No verified scenario date';
+  el('map-label').textContent=state.eventPinned?`${day} · ~9:00 a.m. CST`:`${clockAt(state.release,0,state.scenarioDate)} · Hypothetical start`;
+  el('event-date-note').textContent=state.eventPinned?'Reported detonation date':'Hypothetical start date';
+  el('timeline-start').textContent=state.eventPinned?'TIME AFTER REPORTED DETONATION':'TIME AFTER HYPOTHETICAL START';
   const stale=s?.status==='forecast'&&s.fetched_at_utc&&state.model&&!scenarioArchived()&&(Date.now()-new Date(fetched).getTime())/3600000>9;
   const issue=state.loadError || (!s && state.snapshot?'No wind forecast is available for the current scenario. Paths from the earlier date are not shown.':stale?'This model’s last download is more than nine hours old. Its paths may be outdated.':'');
   el('error-message').hidden=!issue;
@@ -316,12 +355,12 @@ async function loadForecast(){
   }
 }
 function updateDateOptions(){
-  const snapshot=state.snapshot?.event_date===state.officialDate?state.snapshot:null;
+  const snapshot=activeSnapshot();
   const today=chicagoToday(),dates=[];
   if(snapshot?.explore_through && !scenarioArchived()){
     for(let offset=0;offset<=5;offset++){
       const date=localHour(today,offset*24).slice(0,10);
-      if(date>snapshot.explore_through || date===state.officialDate)continue;
+      if(date>snapshot.explore_through || date===EVENT.date)continue;
       if(Object.values(snapshot.models).some(model=>[9,12,15].some(hour=>modelHasWind(model,date,hour))))dates.push(date);
     }
   }
@@ -329,7 +368,7 @@ function updateDateOptions(){
     pauseTimeline();state.selectedDate='';state.duration=state.officialDuration;
   }
   const selector=el('date-select');
-  const current=state.officialDate?`${shortDate(state.officialDate)} · Army notice`:'No reviewed Army date';
+  const current=`${shortDate(EVENT.date)} · Detonation date`;
   selector.replaceChildren(new Option(current,''),...dates.map(date=>new Option(shortDate(date),date)));
   selector.value=state.selectedDate;
   selector.disabled=dates.length===0;
@@ -355,8 +394,7 @@ async function loadOfficial(){
     const r=await fetch('/data/official-status.json',{cache:'no-store'});
     if(!r.ok)throw Error(`HTTP ${r.status}`);
     const s=await r.json();
-    const changed=state.officialDate!==(s.scenario_date||null);
-    state.officialDate=s.scenario_date||null;
+    const changed=state.archiveOn!==(s.archive_on||null);
     state.archiveOn=s.archive_on||null;
     el('official-heading').textContent=s.scenario_date?shortDate(s.scenario_date):(s.headline||'No verified date');
     el('official-text').textContent=s.summary||'No current schedule verified.';
@@ -386,6 +424,7 @@ async function loadExtended(){
   safeRender();
 }
 function safeRender(){
+  if(state.view!=='wind')return;
   try { render(); }
   catch(err){
     console.error('Wind-path overlay rendering failed:',err);
@@ -394,7 +433,10 @@ function safeRender(){
     el('overlay-status').textContent=state.loadError;
   }
 }
-makeMap();installControls();installTimeline();updateDateOptions();safeRender();loadForecast();loadExtended();loadOfficial();
+makeMap();installControls();installTimeline();updateDateOptions();
+const sampling=createSamplingView({map:state.map,plant:PLANT,list:el('sampling-list'),status:el('sampling-status')});
+installMapViews(sampling);loadForecast();loadExtended();loadOfficial();
 // A tab left open picks up newly published snapshots without a page reload.
+setInterval(()=>{if(!document.hidden)sampling.refresh();},60*1000);
 setInterval(()=>{loadForecast();loadExtended();loadOfficial();},5*60*1000);
-document.addEventListener('visibilitychange',()=>{if(!document.hidden){loadForecast();loadExtended();loadOfficial();}});
+document.addEventListener('visibilitychange',()=>{if(!document.hidden){sampling.refresh();loadForecast();loadExtended();loadOfficial();}});
