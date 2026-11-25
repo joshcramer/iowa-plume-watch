@@ -159,8 +159,8 @@ fn audience_bins(counts: Map, geography: Bool) -> Array {
         if geography && key != "XX" && (n < 3 || len(output) >= 6) {
             other = other + n
         } else {
-            let label = if geography { if key == "XX" { "Unknown country" } else { traffic_country_name(key) } } else { device_labels[key] }
-            output = push(output, audience_bin(label, n, total))
+            let label = if geography { if key == "XX" { "Unknown country" } else { traffic_country_name(key) } } else { device_labels[key] ?? "Other or unknown" }
+            output = push(output, audience_bin(str(label), n, total))
         }
     }
     if other > 0 { output = push(output, audience_bin("Other countries", other, total)) }
