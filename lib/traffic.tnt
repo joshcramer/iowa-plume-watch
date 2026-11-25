@@ -1,9 +1,11 @@
 import { execute_statement, query_rows } from "lib/database"
 import { parse_json, stringify } from "std/json"
 import { chars } from "std/string"
-import { has_key } from "std/collections"
+import { has_key, sort_by } from "std/collections"
 import { parse_iso, format, format_in } from "std/time"
 import { tracked_traffic_pages } from "lib/traffic-paths"
+import { traffic_device_labels, valid_audience_views } from "lib/traffic-audience"
+import { traffic_country_name } from "lib/traffic-country-names"
 
 fn traffic_host() -> String { return "iowaplumewatch.heylarri.com" }
 
@@ -30,17 +32,19 @@ fn store_traffic(payload: Map) -> Result<Int, String> {
             if !is_int(value) || value < 0 { return Err("invalid aggregate count") }
         }
         if has_key(row, "path_views") && !valid_path_views(row["path_views"]) { return Err("invalid page counts") }
+        if has_key(row, "audience") && !valid_audience_views(row["audience"]) { return Err("invalid audience counts") }
     }
     return execute_statement(r#"
-        INSERT INTO site_traffic_daily (host, utc_day, collected_at, requests, bytes, visits, views, crawler_views, path_views)
+        INSERT INTO site_traffic_daily (host, utc_day, collected_at, requests, bytes, visits, views, crawler_views, path_views, audience_views)
         SELECT ?, json_extract(value, '$.day'), ?, json_extract(value, '$.requests'),
                json_extract(value, '$.bytes'), json_extract(value, '$.visits'),
-               json_extract(value, '$.views'), json_extract(value, '$.crawler_views'), json_extract(value, '$.path_views')
+               json_extract(value, '$.views'), json_extract(value, '$.crawler_views'), json_extract(value, '$.path_views'), json_extract(value, '$.audience')
         FROM json_each(?) WHERE true
         ON CONFLICT (host, utc_day) DO UPDATE SET
             collected_at=excluded.collected_at, requests=excluded.requests, bytes=excluded.bytes,
             visits=excluded.visits, views=excluded.views, crawler_views=excluded.crawler_views,
-            path_views=coalesce(excluded.path_views, site_traffic_daily.path_views)
+            path_views=coalesce(excluded.path_views, site_traffic_daily.path_views),
+            audience_views=coalesce(excluded.audience_views, site_traffic_daily.audience_views)
         WHERE excluded.collected_at >= site_traffic_daily.collected_at
     "#, [traffic_host(), collected_at, stringify(rows)])
 }
@@ -76,7 +80,7 @@ fn format_bytes(n: Int) -> String {
 }
 
 fn traffic_report(clock: Int) -> Map {
-    let saved = query_rows("SELECT utc_day, collected_at, requests, bytes, visits, views, crawler_views, coalesce(path_views, '') AS path_views FROM site_traffic_daily WHERE host = ? ORDER BY utc_day DESC LIMIT 14", [traffic_host()])
+    let saved = query_rows("SELECT utc_day, collected_at, requests, bytes, visits, views, crawler_views, coalesce(path_views, '') AS path_views, coalesce(audience_views, '') AS audience_views FROM site_traffic_daily WHERE host = ? ORDER BY utc_day DESC LIMIT 14", [traffic_host()])
     if is_err(saved) { return map { "available": false, "unavailable": true } }
     let rows = unwrap(saved)
     if len(rows) == 0 { return map { "available": false } }
@@ -109,7 +113,66 @@ fn traffic_report(clock: Int) -> Map {
     totals["earliest"] = trend[len(trend)-1]
     totals["day_count"] = len(trend)
     totals["path_report"] = page_path_report(rows)
+    totals["audience"] = audience_report(rows)
     return totals
+}
+
+fn audience_report(rows: Array) -> Map {
+    let mut countries = map {}
+    let mut devices = map {}
+    let mut measured = 0
+    for row in rows {
+        let raw = row["audience_views"]
+        let data = if raw == "" { map {} } else { parse_json(raw) ?? map {} }
+        if valid_audience_views(data) {
+            measured = measured + 1
+            for code in keys(data["countries"]) { countries[code] = (countries[code] ?? 0) + data["countries"][code] }
+            for device in keys(data["devices"]) { devices[device] = (devices[device] ?? 0) + data["devices"][device] }
+        }
+    }
+    return map { "available": measured > 0, "incomplete": measured < len(rows), "countries": audience_bins(countries, true), "devices": audience_bins(devices, false) }
+}
+
+fn compare_audience_bins(a, b) -> Int {
+    if a["n"] != b["n"] { return b["n"] - a["n"] }
+    if a["key"] < b["key"] { return -1 }
+    if a["key"] > b["key"] { return 1 }
+    return 0
+}
+
+fn audience_bins(counts: Map, geography: Bool) -> Array {
+    let mut bins = []
+    let mut total = 0
+    for key in keys(counts) {
+        let n = counts[key]
+        if n > 0 {
+            bins = push(bins, map { "key": key, "n": n })
+            total = total + n
+        }
+    }
+    let mut output = []
+    let mut other = 0
+    let device_labels = traffic_device_labels()
+    for bin in sort_by(bins, compare_audience_bins) {
+        let key = bin["key"]
+        let n = bin["n"]
+        if geography && key != "XX" && (n < 3 || len(output) >= 6) {
+            other = other + n
+        } else {
+            let label = if geography { if key == "XX" { "Unknown country" } else { traffic_country_name(key) } } else { device_labels[key] }
+            output = push(output, audience_bin(label, n, total))
+        }
+    }
+    if other > 0 { output = push(output, audience_bin("Other countries", other, total)) }
+    return output
+}
+
+fn audience_bin(label: String, n: Int, total: Int) -> Map {
+    let tenths = round(1000.0 * unwrap(float(n)) / unwrap(float(total)))
+    let whole = floor(unwrap(float(tenths)) / 10.0)
+    let fraction = tenths % 10
+    let share = if tenths == 0 { "<0.1%" } else if fraction == 0 { str(whole) + "%" } else { str(whole) + "." + str(fraction) + "%" }
+    return map { "label": label, "count": format_count(n), "n": n, "max": total, "share": share }
 }
 
 fn page_path_report(rows: Array) -> Map {

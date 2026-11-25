@@ -41,4 +41,21 @@ assert(unwrap(store_traffic(map { "host": traffic_host(), "collected_at": collec
 let gap = traffic_report(collected + 180)["path_report"]
 assert(gap["incomplete"] == true && gap["rows"][1]["cells"][0] == "—" && gap["rows"][2]["cells"][0] == "0")
 assert(gap["series"][0]["drawing"] == "M58 212 M608 74 ")
-print("PASS: traffic import is hostname-bound, replay-safe, and reports only known page paths")
+assert((traffic_report(collected + 180)["audience"] ?? map {})["available"] == false)
+let mut tracked = measured
+tracked["audience"] = map { "countries": map { "US": 3, "CA": 1 }, "devices": map { "mobile": 3, "desktop": 1 } }
+let audience_batch = map { "host": traffic_host(), "collected_at": collected + 240, "days": [tracked] }
+assert(unwrap(store_traffic(audience_batch)) == 1)
+assert(unwrap(store_traffic(audience_batch)) == 1)
+let view = traffic_report(collected + 240)["audience"]
+assert(view["available"] && view["incomplete"])
+assert(view["countries"][0]["label"] == "United States" && view["countries"][0]["share"] == "75%")
+assert(view["countries"][1]["label"] == "Other countries" && view["countries"][1]["count"] == "1")
+assert(view["devices"][0]["label"] == "Mobile" && view["devices"][0]["count"] == "3")
+tracked["audience"] = map { "countries": map { "name.invalid": 4 }, "devices": map { "mobile": 4 } }
+assert(is_err(store_traffic(map { "host": traffic_host(), "collected_at": collected + 300, "days": [tracked] })))
+tracked["audience"] = map { "countries": map { "US": 4 }, "devices": map { "phone-model": 4 } }
+assert(is_err(store_traffic(map { "host": traffic_host(), "collected_at": collected + 300, "days": [tracked] })))
+assert(unwrap(store_traffic(map { "host": traffic_host(), "collected_at": collected + 360, "days": [row] })) == 1)
+assert(traffic_report(collected + 360)["audience"]["devices"][0]["count"] == "3")
+print("PASS: traffic import and path, device and country aggregates")

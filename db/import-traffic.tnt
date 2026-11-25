@@ -3,7 +3,7 @@ import { parse_json } from "std/json"
 import { store_traffic } from "lib/traffic"
 
 let source = unwrap(read_file("/dev/stdin"))
-assert(len(source) <= 16000)
+assert(len(source) <= 262144)
 let payload = unwrap(parse_json(source))
 assert(is_map(payload))
 let changed = unwrap(store_traffic(payload))
