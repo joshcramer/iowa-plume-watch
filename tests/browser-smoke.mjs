@@ -40,6 +40,15 @@ try {
     null,{timeout:25000}
   );
   await checkForecastIntro(page);
+  const postEvent=page.locator('#post-detonation');
+  assert.equal(await postEvent.getByRole('heading',{name:'Controlled detonation reported in Middletown'}).count(),1);
+  const footage=postEvent.locator('iframe');
+  assert.equal(await footage.count(),1);
+  const embed=new URL(await footage.getAttribute('src'));
+  assert.equal(embed.origin+embed.pathname,'https://www.facebook.com/plugins/video.php');
+  assert.equal(embed.searchParams.get('href'),'https://www.facebook.com/reel/2334713503734323/');
+  assert.equal(await postEvent.getByRole('link',{name:'EPA air monitoring and sampling dashboard'}).count(),1);
+  assert.match(await page.locator('.official-layout .schedule-label').textContent(),/Pre-detonation/);
   assert.equal(await page.locator('.reference-route, .airport-marker, .davenport-marker, #route-distance').count(),0,
     'The public map must not render the personal itinerary, its endpoints, or route-distance readouts');
   assert.equal(await page.locator('img[src*="nov23-"]').count(),0,
@@ -217,6 +226,8 @@ try {
     await mobile.goto(`${origin}/`,{waitUntil:'domcontentloaded'});
     await mobile.waitForFunction(()=>document.querySelector('.forecast-path'),null,{timeout:25000});
     await checkForecastIntro(mobile);
+    const clipBox=await mobile.locator('#post-detonation iframe').boundingBox();
+    assert.ok(clipBox && clipBox.x>=0 && clipBox.x+clipBox.width<=390,'Post-detonation video fits a phone');
     const mobileLayout=await mobile.evaluate(()=>({top:document.querySelector('#map').getBoundingClientRect().top, width:document.documentElement.clientWidth, scroll:document.documentElement.scrollWidth}));
     assert.ok(mobileLayout.top<440,'Map should start within the first phone viewport');
     assert.ok(mobileLayout.scroll<=mobileLayout.width,'Page should not scroll sideways');

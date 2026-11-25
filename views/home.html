@@ -4,6 +4,9 @@
         <p class="snapshot-line"><span>Fetched <strong id="updated-at">—</strong></span></p>
       </div>
 
+      {{#if has_post_event}}
+      <a class="post-event-jump schedule-link" href="#post-detonation">Post-detonation update and video <span aria-hidden="true">↓</span></a>
+      {{/if}}
       <noscript><p class="forecast-caution">The interactive map needs JavaScript. Official notices are available below.</p></noscript>
       <div class="forecast-layout">
         <div class="map-panel">
@@ -53,10 +56,28 @@
       <p class="section-note">Pressure heights are approximations. The 925 hPa and 850 hPa levels are typically around 0.8 km and 1.5 km above sea level, respectively. For an actual explosion, material could rise or fall between these layers; this site does not compute that behavior.</p>
     </section>
     <section class="shell section official-section" id="official">
-      <div class="section-header"><div><h2>Official updates</h2><p>Reviewed notices and public statements, separate from the wind forecast.</p></div></div>
+      <div class="section-header"><div><h2>Official updates</h2><p>Agency notices and sourced reporting, separate from the wind forecast.</p></div></div>
+      {{#if has_post_event}}
+      <article class="schedule-notice post-event" id="post-detonation" aria-labelledby="post-event-heading">
+        <div>
+          <div class="schedule-label">Post-detonation update · 11/25/26</div>
+          <h3 id="post-event-heading">{{post_event.headline}}</h3>
+          <p>{{post_event.summary}}</p>
+          <ul class="post-event-links">
+            <li><a class="schedule-link" href="{{post_event.source_url}}">Read CNN’s live coverage</a></li>
+            <li><a class="schedule-link" href="https://experience.arcgis.com/experience/1ddcf8b9d8314971b00dac8893ae9cd6">EPA air monitoring and sampling dashboard</a></li>
+            <li><a class="schedule-link" href="https://response.epa.gov/site/site_profile.aspx?site_id=17211">EPA response updates and sampling requests</a></li>
+          </ul>
+        </div>
+        <figure class="post-event-footage">
+          <iframe src="https://www.facebook.com/plugins/video.php?href=https%3A%2F%2Fwww.facebook.com%2Freel%2F2334713503734323%2F&amp;show_text=0&amp;width=267" title="KWQC TV6 footage of the controlled detonation in Middletown" width="267" height="476" loading="lazy" allow="encrypted-media; fullscreen; picture-in-picture" allowfullscreen></iframe>
+          <figcaption><a class="schedule-link" href="https://www.kwqc.com/2026/11/25/what-know-about-us-armys-lead-azide-detonation-how-watch/">Watch on KWQC TV6</a></figcaption>
+        </figure>
+      </article>
+      {{/if}}
       <div class="official-layout">
         <article class="schedule-notice" aria-labelledby="official-heading">
-          <div class="schedule-label">Last reviewed schedule notice</div>
+          <div class="schedule-label">{{#if has_post_event}}Pre-detonation schedule notice{{#else}}Last reviewed schedule notice{{/if}}</div>
           <h3 id="official-heading">{{official_heading}}</h3>
           <p id="official-text">{{official.summary}}</p>
           <a id="official-link" class="schedule-link" href="{{official.source_url}}" target="_blank" rel="noopener noreferrer">Read the agency notice <span aria-hidden="true">↗</span></a>
@@ -64,7 +85,7 @@
         </article>
         <div class="official-history" id="official-update-log">
           <h3 id="event-timeline-heading">Event timeline</h3>
-          <p class="section-note">Newest first, by publication date. A date in a past notice is not confirmation the operation will go ahead.</p>
+          <p class="section-note">Newest first, by publication date.{{#if has_post_event}} Earlier entries preserve what was announced at the time.{{#else}} A date in a past notice is not confirmation the operation will go ahead.{{/if}}</p>
           <div class="event-filters" role="group" aria-label="Filter the event timeline" hidden>
             <button type="button" aria-controls="event-timeline" aria-pressed="false" data-events="notable">Notable events</button>
             <button type="button" aria-controls="event-timeline" aria-pressed="true" data-events="all">All events</button>

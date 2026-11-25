@@ -15,6 +15,7 @@ enable_csp(map {
     "font-src": "'self'",
     "connect-src": "'self'",
     "object-src": "'none'",
+    "frame-src": "'self' https://www.facebook.com/plugins/video.php",
     "frame-ancestors": "'none'",
     "base-uri": "'self'",
     "form-action": "'self'"

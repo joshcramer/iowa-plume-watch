@@ -15,8 +15,10 @@ fn get(req) {
     let date = status["scenario_date"]
     let heading = if is_string(date) { us_date(date) } else { status["headline"] ?? "No verified date" }
     let mut updates = []
+    let mut post_event = map {}
     // The database returns newest first, retaining editorial order within a day.
     for entry in entries {
+        if entry["id"] == "cnn-detonation-report-2026-11-25" { post_event = entry }
         let is_notable = entry["notable"] ?? false
         updates = push(updates, map {
             "notice": entry,
@@ -28,7 +30,7 @@ fn get(req) {
         "title": "Iowa Plume Watch · Wind transport explorer",
         "description": "Independent wind-transport screening for Middletown, Iowa. Not a health advisory or exposure map.",
         "body_class": "page-home",
-        "content": template("views/home.html", map { "official": status, "official_heading": heading, "published_label": us_date(status["published_date"]), "scenario_label": us_date(date), "updates": updates })
+        "content": template("views/home.html", map { "official": status, "official_heading": heading, "published_label": us_date(status["published_date"]), "scenario_label": us_date(date), "updates": updates, "post_event": post_event, "has_post_event": is_string(post_event["id"]) })
     })
     return response(200, map {
         "Content-Type": "text/html; charset=utf-8",
