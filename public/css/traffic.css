@@ -49,6 +49,7 @@
 .traffic-path-table{min-width:0}
 @media(max-width:550px){.traffic-axis{font-size:22px}.traffic-chart{padding-inline:.62rem}}
 
+#audience{scroll-margin-top:4.75rem}
 .traffic-audience-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1px;border:1px solid var(--line);border-radius:.55rem;overflow:hidden;background:var(--line)}
 .traffic-audience-panel{min-width:0;background:var(--card);padding:clamp(.85rem,2.2vw,1.3rem);font-size:.9rem}
 .traffic-audience-panel h3{margin:0 0 .9rem;font-size:1rem}
