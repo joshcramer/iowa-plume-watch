@@ -1,7 +1,9 @@
 import { execute_statement, query_rows } from "lib/database"
-import { stringify } from "std/json"
+import { parse_json, stringify } from "std/json"
 import { chars } from "std/string"
+import { has_key } from "std/collections"
 import { parse_iso, format, format_in } from "std/time"
+import { tracked_traffic_pages } from "lib/traffic-paths"
 
 fn traffic_host() -> String { return "iowaplumewatch.heylarri.com" }
 
@@ -27,18 +29,30 @@ fn store_traffic(payload: Map) -> Result<Int, String> {
             let value = row[field]
             if !is_int(value) || value < 0 { return Err("invalid aggregate count") }
         }
+        if has_key(row, "path_views") && !valid_path_views(row["path_views"]) { return Err("invalid page counts") }
     }
     return execute_statement(r#"
-        INSERT INTO site_traffic_daily (host, utc_day, collected_at, requests, bytes, visits, views, crawler_views)
+        INSERT INTO site_traffic_daily (host, utc_day, collected_at, requests, bytes, visits, views, crawler_views, path_views)
         SELECT ?, json_extract(value, '$.day'), ?, json_extract(value, '$.requests'),
                json_extract(value, '$.bytes'), json_extract(value, '$.visits'),
-               json_extract(value, '$.views'), json_extract(value, '$.crawler_views')
+               json_extract(value, '$.views'), json_extract(value, '$.crawler_views'), json_extract(value, '$.path_views')
         FROM json_each(?) WHERE true
         ON CONFLICT (host, utc_day) DO UPDATE SET
             collected_at=excluded.collected_at, requests=excluded.requests, bytes=excluded.bytes,
-            visits=excluded.visits, views=excluded.views, crawler_views=excluded.crawler_views
+            visits=excluded.visits, views=excluded.views, crawler_views=excluded.crawler_views,
+            path_views=coalesce(excluded.path_views, site_traffic_daily.path_views)
         WHERE excluded.collected_at >= site_traffic_daily.collected_at
     "#, [traffic_host(), collected_at, stringify(rows)])
+}
+
+fn valid_path_views(counts) -> Bool {
+    let pages = tracked_traffic_pages()
+    if !is_map(counts) || len(keys(counts)) != len(pages) { return false }
+    for page in pages {
+        let n = counts[page["path"]]
+        if !is_int(n) || n < 0 || n > 1000000000000 { return false }
+    }
+    return true
 }
 
 fn format_count(n: Int) -> String {
@@ -62,7 +76,7 @@ fn format_bytes(n: Int) -> String {
 }
 
 fn traffic_report(clock: Int) -> Map {
-    let saved = query_rows("SELECT utc_day, collected_at, requests, bytes, visits, views, crawler_views FROM site_traffic_daily WHERE host = ? ORDER BY utc_day DESC LIMIT 14", [traffic_host()])
+    let saved = query_rows("SELECT utc_day, collected_at, requests, bytes, visits, views, crawler_views, coalesce(path_views, '') AS path_views FROM site_traffic_daily WHERE host = ? ORDER BY utc_day DESC LIMIT 14", [traffic_host()])
     if is_err(saved) { return map { "available": false, "unavailable": true } }
     let rows = unwrap(saved)
     if len(rows) == 0 { return map { "available": false } }
@@ -94,5 +108,76 @@ fn traffic_report(clock: Int) -> Map {
     totals["latest"] = trend[0]
     totals["earliest"] = trend[len(trend)-1]
     totals["day_count"] = len(trend)
+    totals["path_report"] = page_path_report(rows)
     return totals
+}
+
+fn page_path_report(rows: Array) -> Map {
+    let pages = tracked_traffic_pages()
+    let mut table_rows = []
+    let mut chart_days = []
+    let mut max_views = 0
+    let last = len(rows) - 1
+    let mut i = 0
+    for r in rows {
+        let day = r["utc_day"]
+        let ts = unwrap(parse_iso(day + "T00:00:00Z"))
+        let short = format(ts, "%b %-d")
+        let data = if r["path_views"] == "" { map {} } else { parse_json(r["path_views"]) ?? map {} }
+        let measured = valid_path_views(data)
+        let mut cells = []
+        for page in pages {
+            let n = if measured { data[page["path"]] } else { 0 }
+            if n > max_views { max_views = n }
+            cells = push(cells, if measured { format_count(n) } else { "—" })
+        }
+        table_rows = push(table_rows, map { "day": day, "label": short, "cells": cells })
+        let x = if last == 0 { 333 } else { 58 + round(550.0 * unwrap(float(last-i)) / unwrap(float(last))) }
+        let tick = i == 0 || i == last || i == floor(unwrap(float(last)) / 2.0)
+        chart_days = push(chart_days, map { "x": x, "label": short, "counts": data, "measured": measured, "tick": tick })
+        i = i + 1
+    }
+    let top = graph_ceiling(max_views)
+    let mut ticks = []
+    for step in [0, 1, 2, 3, 4] {
+        ticks = push(ticks, map { "y": 212 - step * 46, "label": format_count(round(unwrap(float(top)) * unwrap(float(step)) / 4.0)) })
+    }
+    let mut series = []
+    let mut days_measured = 0
+    for page in pages {
+        let mut d = ""
+        let mut continuing = false
+        let mut total = 0
+        let mut points = []
+        let mut measured_days = 0
+        // Oldest to newest; missing values break the line, but zero is a real point.
+        let mut index = last
+        while index >= 0 {
+            let day = chart_days[index]
+            if day["measured"] {
+                let n = day["counts"][page["path"]]
+                let y = 212 - round(184.0 * unwrap(float(n)) / unwrap(float(top)))
+                d = d + (if continuing { "L" } else { "M" }) + str(day["x"]) + " " + str(y) + " "
+                points = push(points, map { "x": day["x"], "y": y, "label": day["label"], "count": format_count(n) })
+                measured_days = measured_days + 1
+                total = total + n
+                continuing = true
+            } else { continuing = false }
+            index = index - 1
+        }
+        days_measured = measured_days
+        series = push(series, map { "path": page["path"], "name": page["name"], "style": page["style"], "total": format_count(total), "drawing": d, "points": points })
+    }
+    return map { "available": days_measured > 0, "incomplete": days_measured < len(rows), "series": series, "rows": table_rows, "ticks": ticks, "chart_days": chart_days }
+}
+
+fn graph_ceiling(maximum: Int) -> Int {
+    let mut unit = 1
+    for magnitude in [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12] {
+        for multiple in [4, 8, 12, 20, 40, 60, 80, 100] {
+            if maximum <= multiple * unit { return multiple * unit }
+        }
+        unit = unit * 10
+    }
+    return 1000000000000
 }

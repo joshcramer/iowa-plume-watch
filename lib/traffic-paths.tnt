@@ -1,0 +1,4 @@
+// Only canonical public HTML routes. Never publish observed arbitrary paths or query strings.
+fn tracked_traffic_pages() -> Array {
+    return [map { "path": "/", "name": "Map", "style": "map" }, map { "path": "/stats", "name": "Stats", "style": "stats" }]
+}

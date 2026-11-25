@@ -15,4 +15,30 @@ assert(is_err(store_traffic(map { "host": "other.heylarri.com", "collected_at": 
 assert(is_err(store_traffic(map { "host": traffic_host(), "collected_at": collected, "days": [row, row] })))
 assert(is_err(store_traffic(map { "host": traffic_host(), "collected_at": collected, "days": [] })))
 assert(traffic_report(collected)["requests"] == 12)
-print("PASS: traffic import is hostname-bound, replay-safe, and keeps last good totals")
+assert(traffic_report(collected)["path_report"]["available"] == false)
+let mut measured = row
+measured["path_views"] = map { "/": 3, "/stats": 1 }
+let updated = map { "host": traffic_host(), "collected_at": collected + 60, "days": [measured] }
+assert(unwrap(store_traffic(updated)) == 1)
+assert(unwrap(store_traffic(updated)) == 1)
+let paths = traffic_report(collected + 60)["path_report"]
+assert(paths["available"] == true && len(paths["series"]) == 2)
+assert(paths["series"][0]["total"] == "3" && paths["series"][1]["total"] == "1")
+assert(paths["rows"][0]["cells"][0] == "3" && paths["rows"][0]["cells"][1] == "1")
+let mut bad = row
+bad["path_views"] = map { "/": 1, "/stats?private=example": 3 }
+assert(is_err(store_traffic(map { "host": traffic_host(), "collected_at": collected + 120, "days": [bad] })))
+bad["path_views"] = map { "/": 1 }
+assert(is_err(store_traffic(map { "host": traffic_host(), "collected_at": collected + 120, "days": [bad] })))
+assert(unwrap(store_traffic(map { "host": traffic_host(), "collected_at": collected + 180, "days": [row] })) == 1)
+assert(traffic_report(collected + 180)["path_report"]["series"][1]["total"] == "1")
+let mut older = row
+older["day"] = "2026-11-22"
+let mut oldest = older
+oldest["day"] = "2026-11-21"
+oldest["path_views"] = map { "/": 0, "/stats": 0 }
+assert(unwrap(store_traffic(map { "host": traffic_host(), "collected_at": collected + 180, "days": [older, oldest] })) == 2)
+let gap = traffic_report(collected + 180)["path_report"]
+assert(gap["incomplete"] == true && gap["rows"][1]["cells"][0] == "—" && gap["rows"][2]["cells"][0] == "0")
+assert(gap["series"][0]["drawing"] == "M58 212 M608 74 ")
+print("PASS: traffic import is hostname-bound, replay-safe, and reports only known page paths")
