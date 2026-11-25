@@ -8,9 +8,13 @@
   <meta name="theme-color" content="#091622">
   <meta name="robots" content="noindex, follow">
   <title>{{title}}</title>
+  {{#if body_class != "page-traffic"}}
   <link rel="stylesheet" href="/assets/css/vendor/leaflet.css?v=1.9.4" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=">
+  {{/if}}
   <link rel="stylesheet" href="/assets/css/styles.css?v=ntnt-11">
+  {{#if body_class == "page-traffic"}}
   <link rel="stylesheet" href="/assets/css/traffic.css?v=1">
+  {{/if}}
 </head>
 <body class="{{body_class}}">
   <a class="skip-link" href="#main">Skip to content</a>
@@ -19,8 +23,10 @@
     {{{content}}}
   </main>
   {{> footer}}
+  {{#if body_class != "page-traffic"}}
   <script src="/assets/js/vendor/leaflet.js?v=1.9.4" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" defer></script>
   <script type="module" src="/assets/js/app.js?v=ntnt-9"></script>
   <script defer src="/assets/js/event-timeline.js?v=ntnt-11"></script>
+  {{/if}}
 </body>
 </html>
