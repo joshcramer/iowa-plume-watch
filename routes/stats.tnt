@@ -1,0 +1,16 @@
+import { response } from "std/http/server"
+import { render_page } from "lib/layout"
+import { now } from "std/time"
+import { traffic_report } from "lib/traffic"
+
+fn get(req) {
+    let report = traffic_report(now())
+    let page = render_page(map {
+        "title": "Site traffic · Iowa Plume Watch",
+        "description": "Daily Cloudflare traffic aggregates for Iowa Plume Watch.",
+        "body_class": "page-traffic",
+        "content": template("views/traffic.html", report)
+    })
+    let status = if report["unavailable"] ?? false { 503 } else { 200 }
+    return response(status, map { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store, no-transform" }, page)
+}

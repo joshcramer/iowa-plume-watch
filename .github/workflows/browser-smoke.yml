@@ -26,6 +26,7 @@ jobs:
               ntnt run tests/official-events.tnt
               ntnt run tests/snapshots.tnt
               ntnt run tests/updates.tnt
+              ntnt run tests/traffic.tnt
               sh db/local-init.sh local
             '
           docker run --rm --network none -v "$PWD/tests:/app/tests:ro" --entrypoint ntnt plume-check run tests/forecast-feed.tnt
@@ -38,6 +39,7 @@ jobs:
           docker compose up --wait --wait-timeout 90 --no-build --pull never app
           curl -fsS http://127.0.0.1:8080/ready
           curl -fsS http://127.0.0.1:8080/data/forecast.json >/dev/null
+          sh tests/traffic-http.sh
           npm install --no-save --package-lock=false playwright
           npx playwright install --with-deps chromium
           PLUME_SEED_SCENARIO=1 node tests/browser-smoke.mjs

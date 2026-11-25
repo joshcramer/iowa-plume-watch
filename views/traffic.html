@@ -1,0 +1,38 @@
+<section class="shell traffic-report" data-traffic-report>
+  <header class="traffic-heading">
+    <div>
+      <h1>Site traffic</h1>
+      <p>How often people open Iowa Plume Watch. These numbers describe activity on the website, not activity at the site being monitored.</p>
+    </div>
+    <a class="action" href="/">Back to the map</a>
+  </header>
+  {{#if available}}
+  <div class="traffic-period">
+    <div><strong>{{earliest.label}} – {{latest.label}}</strong><span> · {{day_count}} completed UTC days</span></div>
+    <div>{{#if stale}}<strong class="traffic-warning">Update delayed.</strong> {{/if}}Last collected {{collected_display}}.</div>
+  </div>
+  <dl class="traffic-totals">
+    <div><dt>Visits</dt><dd>{{display.visits}}</dd><p>Arrivals from outside the site</p></div>
+    <div><dt>Page views</dt><dd>{{display.views}}</dd><p>Successful HTML page loads</p></div>
+    <div><dt>HTTP requests</dt><dd>{{display.requests}}</dd><p>Pages, files, APIs and bots</p></div>
+    <div><dt>Data served</dt><dd>{{display.bytes}}</dd><p>Responses delivered by Cloudflare</p></div>
+  </dl>
+  <div class="traffic-heading traffic-subheading">
+    <div><h2>Daily activity</h2><p>Newest first. Bars show visits relative to the busiest day in this report.</p></div>
+  </div>
+  <div class="traffic-table-wrap" tabindex="0" role="region" aria-label="Daily traffic table">
+    <table class="traffic-table">
+      <caption class="traffic-sr">Daily Cloudflare traffic, by UTC date</caption>
+      <thead><tr><th scope="col">Day (UTC)</th><th scope="col">Visits</th><th scope="col">Page views</th><th scope="col">HTTP requests</th><th scope="col">Crawler views</th><th scope="col">Data served</th></tr></thead>
+      <tbody>
+        {{#for row in days}}
+        <tr><th scope="row"><time datetime="{{row.day}}">{{row.label}}</time> <span>{{row.weekday}}</span></th><td class="traffic-visit"><strong>{{row.visits}}</strong><meter min="0" max="{{row.max}}" value="{{row.bar}}" aria-hidden="true"></meter></td><td>{{row.views}}</td><td>{{row.requests}}</td><td>{{row.crawler_views}}</td><td>{{row.bytes}}</td></tr>
+        {{/for}}
+      </tbody>
+    </table>
+  </div>
+  <div class="traffic-notes"><h2>How to read this</h2><p>Visits and page views exclude crawlers identified by Cloudflare. The report counted <strong>{{display.crawler_views}} crawler page views</strong> separately. Visits are not unique people, and unidentified automated traffic can still be counted.</p><p>The report uses <a href="https://developers.cloudflare.com/analytics/graphql-api/tutorials/end-customer-analytics/">Cloudflare edge analytics</a> for this hostname only. Counts are estimates, not raw visitor records. A daily job refreshes completed UTC days; today is not included.</p></div>
+  {{#else}}
+  <div class="traffic-notes" role="status">{{#if unavailable}}<h2>Traffic report unavailable</h2><p>The saved report cannot be read right now. Check back later.</p>{{#else}}<h2>No traffic report yet</h2><p>The first daily Cloudflare collection has not finished. Check back after the next refresh.</p>{{/if}}</div>
+  {{/if}}
+</section>

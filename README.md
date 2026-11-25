@@ -35,6 +35,12 @@ The timeline and the forecast worker read reviewed notices from `official_events
 
 See [Database and event publishing](db/README.md) for the `ntnt db` workflow and reviewed imports.
 
+## Website traffic proof of concept
+
+`/stats` is a public, aggregate-only report for `iowaplumewatch.heylarri.com`. It reads daily rows from the existing app SQLite store; viewing it never calls Cloudflare. Dates are completed UTC days. Visits and HTML page views omit identified crawlers, whose page views are shown separately. Visits are not unique people. Cloudflare estimates can still include unclassified automation.
+
+The optional hosted collector is a native NTNT script run by a user systemd timer at 03:20 UTC daily. See [`ops/README.md`](ops/README.md) for isolation, scheduling and release steps. The default local site does not need a credential or run the collector.
+
 ## Tests
 
 Node.js is only needed for the JavaScript tests, not to run the app. Use Node.js 22 as in [CI](.github/workflows/browser-smoke.yml):
