@@ -1,0 +1,31 @@
+import { matches_pattern } from "std/string"
+import { has_key } from "std/collections"
+
+fn traffic_device_labels() -> Map {
+    return map { "mobile": "Mobile", "desktop": "Desktop", "tablet": "Tablet", "other": "Other or unknown" }
+}
+
+fn traffic_country_code(value) -> Bool {
+    return is_string(value) && len(value) == 2 && matches_pattern(value, "^[A-Z]{2}$")
+}
+
+fn traffic_audience_key(dimension: String, value) -> String {
+    if dimension == "countries" {
+        return if traffic_country_code(value) { value } else { "XX" }
+    }
+    return if is_string(value) && has_key(traffic_device_labels(), value) { value } else { "other" }
+}
+
+fn valid_audience_views(data) -> Bool {
+    if !is_map(data) || len(keys(data)) != 2 { return false }
+    let devices = traffic_device_labels()
+    for dimension in ["countries", "devices"] {
+        let bins = data[dimension]
+        if !is_map(bins) || len(keys(bins)) > (if dimension == "countries" { 256 } else { len(keys(devices)) }) { return false }
+        for label in keys(bins) {
+            let n = bins[label]
+            if traffic_audience_key(dimension, label) != label || !is_int(n) || n < 0 || n > 1000000000000 { return false }
+        }
+    }
+    return true
+}

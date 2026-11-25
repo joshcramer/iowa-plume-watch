@@ -17,6 +17,38 @@
     <div><dt>HTTP requests</dt><dd>{{display.requests}}</dd><p>Pages, files, APIs and bots</p></div>
     <div><dt>Data served</dt><dd>{{display.bytes}}</dd><p>Responses delivered by Cloudflare</p></div>
   </dl>
+  <section id="audience" aria-labelledby="traffic-audience-title">
+    <div class="traffic-heading traffic-subheading">
+      <div><h2 id="traffic-audience-title">Geography and devices</h2><p>Page views by country and device type for the period above. Locations are approximate; known crawlers are excluded.</p></div>
+    </div>
+    {{#if audience.available}}
+    <div class="traffic-audience-grid">
+      <section class="traffic-audience-panel" aria-labelledby="country-views-heading">
+        <h3 id="country-views-heading">Top countries</h3>
+        {{#if audience.countries}}
+        <ul class="traffic-breakdown">
+          {{#for item in audience.countries}}
+          <li><div><span>{{item.label}}</span><strong>{{item.count}} <span>({{item.share}})</span></strong></div><meter min="0" max="{{item.max}}" value="{{item.n}}" aria-hidden="true"></meter></li>
+          {{/for}}
+        </ul>
+        {{#else}}<p>No country views in this period.</p>{{/if}}
+      </section>
+      <section class="traffic-audience-panel" aria-labelledby="device-views-heading">
+        <h3 id="device-views-heading">Device types</h3>
+        {{#if audience.devices}}
+        <ul class="traffic-breakdown traffic-devices">
+          {{#for item in audience.devices}}
+          <li><div><span>{{item.label}}</span><strong>{{item.count}} <span>({{item.share}})</span></strong></div><meter min="0" max="{{item.max}}" value="{{item.n}}" aria-hidden="true"></meter></li>
+          {{/for}}
+        </ul>
+        {{#else}}<p>No device views in this period.</p>{{/if}}
+      </section>
+    </div>
+    <p class="traffic-path-note">Less-visited countries are grouped under Other countries.{{#if audience.incomplete}} Some days in this period don’t have a saved country or device breakdown.{{/if}}</p>
+    {{#else}}
+    <p class="traffic-path-note" role="status">No country or device breakdown yet. Check back after the next refresh.</p>
+    {{/if}}
+  </section>
   <section class="traffic-pages" id="page-views" aria-labelledby="traffic-pages-title">
     <div class="traffic-heading traffic-subheading">
       <div><h2 id="traffic-pages-title">Page views by URL</h2><p>Successful page loads per UTC day, excluding known crawlers. Query strings are not collected.</p></div>

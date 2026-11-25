@@ -10,6 +10,12 @@ if [ "${TRAFFIC_EXPECT_PATHS:-0}" = 1 ]; then
   printf '%s' "$report" | grep -q '<code>/stats</code>'
   printf '%s' "$report" | grep -q 'Daily counts by URL'
 fi
+if [ "${TRAFFIC_EXPECT_AUDIENCE:-0}" = 1 ]; then
+  printf '%s' "$report" | grep -q 'Geography and devices'
+  printf '%s' "$report" | grep -q 'United States'
+  printf '%s' "$report" | grep -q 'Mobile'
+  printf '%s' "$report" | grep -q 'traffic-audience-grid'
+fi
 if printf '%s' "$report" | grep -Eq '/assets/js/(app\.js|event-timeline\.js|vendor/leaflet\.js)'; then
   printf '%s\n' 'Map scripts must not load on /stats' >&2
   exit 1

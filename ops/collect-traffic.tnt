@@ -4,6 +4,7 @@ import { parse_json, stringify } from "std/json"
 import { fetch } from "std/http"
 import { now, format, parse_iso, add_days } from "std/time"
 import { tracked_traffic_pages } from "lib/traffic-paths"
+import { traffic_audience_key } from "lib/traffic-audience"
 
 let HOST = "iowaplumewatch.heylarri.com"
 let BASE = "https://api.cloudflare.com/client/v4"
@@ -47,6 +48,8 @@ fn collect(key: String, clock: Int) -> Map {
             pages: httpRequestsAdaptiveGroups(limit: 15, filter:$clean) { count sum { visits } dimensions { date clientRequestHTTPHost } }
             crawlers: httpRequestsAdaptiveGroups(limit: 15, filter:$crawler) { count dimensions { date clientRequestHTTPHost } }
             pathPages: httpRequestsAdaptiveGroups(limit:$pathLimit, filter:$pathFilter) { count dimensions { date clientRequestPath clientRequestHTTPHost } }
+            countries: httpRequestsAdaptiveGroups(limit:3601, filter:$clean) { count dimensions { date clientCountryName clientRequestHTTPHost } }
+            devices: httpRequestsAdaptiveGroups(limit:141, filter:$clean) { count dimensions { date clientDeviceType clientRequestHTTPHost } }
           } }
         }
     "#
@@ -60,7 +63,7 @@ fn collect(key: String, clock: Int) -> Map {
     // Bounded range (14 dates), independent of the upstream result size or order.
     for offset in [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13] {
         let day = format(add_days(start, offset), "%Y-%m-%d")
-        days[day] = map { "day": day, "requests": 0, "bytes": 0, "visits": 0, "views": 0, "crawler_views": 0, "path_views": empty_counts }
+        days[day] = map { "day": day, "requests": 0, "bytes": 0, "visits": 0, "views": 0, "crawler_views": 0, "path_views": empty_counts, "audience": map { "countries": map {}, "devices": map {} } }
     }
     for label in ["requests", "pages", "crawlers"] {
         let groups = series[label]
@@ -112,6 +115,33 @@ fn collect(key: String, clock: Int) -> Map {
         counts[path] = count
         entry["path_views"] = counts
         days[day] = entry
+    }
+    for dimension in ["countries", "devices"] {
+        let groups = series[dimension]
+        let max_groups = if dimension == "countries" { 3600 } else { 140 }
+        if !is_array(groups) || len(groups) > max_groups { panic("Invalid Cloudflare audience group count") }
+        let field = if dimension == "countries" { "clientCountryName" } else { "clientDeviceType" }
+        let mut seen = map {}
+        for row in groups {
+            let dims = row["dimensions"]
+            let day = dims["date"]
+            if dims["clientRequestHTTPHost"] != HOST || !is_string(day) || !is_map(days[day]) { panic("Cloudflare returned an unexpected audience group") }
+            let raw = dims[field] ?? ""
+            assert(is_string(raw) && len(raw) <= 32)
+            let identity = day + ":" + raw
+            if seen[identity] ?? false { panic("Cloudflare returned a duplicate audience group") }
+            seen[identity] = true
+            let key = traffic_audience_key(dimension, raw)
+            let count = row["count"]
+            assert(is_int(count) && count >= 0)
+            let mut entry = days[day]
+            let mut audience = entry["audience"]
+            let mut bins = audience[dimension]
+            bins[key] = (bins[key] ?? 0) + count
+            audience[dimension] = bins
+            entry["audience"] = audience
+            days[day] = entry
+        }
     }
     let mut batch = []
     for key in keys(days) { batch = push(batch, days[key]) }

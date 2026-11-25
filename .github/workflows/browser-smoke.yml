@@ -40,9 +40,9 @@ jobs:
           curl -fsS http://127.0.0.1:8080/ready
           curl -fsS http://127.0.0.1:8080/data/forecast.json >/dev/null
           sh tests/traffic-http.sh
-          printf '%s\n' '{"host":"iowaplumewatch.heylarri.com","collected_at":1795563600,"days":[{"day":"2026-11-23","requests":12,"bytes":1200,"visits":3,"views":4,"crawler_views":1,"path_views":{"/":3,"/stats":1}}]}' \
+          printf '%s\n' '{"host":"iowaplumewatch.heylarri.com","collected_at":1795563600,"days":[{"day":"2026-11-23","requests":12,"bytes":1200,"visits":3,"views":4,"crawler_views":1,"path_views":{"/":3,"/stats":1},"audience":{"countries":{"US":3,"CA":1},"devices":{"mobile":3,"desktop":1}}}]}' \
             | docker compose exec -T app ntnt run db/import-traffic.tnt
-          TRAFFIC_EXPECT_PATHS=1 sh tests/traffic-http.sh
+          TRAFFIC_EXPECT_PATHS=1 TRAFFIC_EXPECT_AUDIENCE=1 sh tests/traffic-http.sh
           npm install --no-save --package-lock=false playwright
           npx playwright install --with-deps chromium
           PLUME_SEED_SCENARIO=1 node tests/browser-smoke.mjs
