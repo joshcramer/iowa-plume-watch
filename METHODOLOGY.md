@@ -12,7 +12,7 @@ The sampling tab reads the public Xact feature layer used by the [EPA Region 7 d
 
 The map marks readings at or above the dashboard’s **32 µg/m³ short-term screening level (DOE PAC-1)** in red. That comparison is not a safety, regulatory, or individual exposure determination. A lower reading is not an all-clear. The source provides points, not a measured boundary; the map does not interpolate concentrations, characterize areas between stations, or combine air readings with soil or laboratory samples.
 
-The optional monitoring-locations overlay uses the EPA dashboard’s separate location layer. It contains station IDs and instrument types, not measurements. The optional 5-, 10-, and 20-mile rings are distances from the detonation-site marker, not contamination contours, sampling coverage, or advisory zones.
+The monitoring-locations overlay is enabled by default and can be turned off. It uses the EPA dashboard’s separate location layer, which contains station IDs and instrument types, not measurements. The optional 5-, 10-, and 20-mile rings are distances from the detonation-site marker, not contamination contours, sampling coverage, or advisory zones.
 
 ## Forecast data
 

@@ -16,6 +16,12 @@ const page = await browser.newPage({viewport:{width:1280,height:950},deviceScale
 const stationReading=(id,amount,x,y)=>({geometry:{x,y},attributes:{objectid:id,Air_Station_ID:`AS0${id}`,Mon_Date_Time:1795621200000,Mon_Results:amount,Mon_Units:'µg/m3'}});
 const sampleFixture={spatialReference:{wkid:4326},features:[stationReading(1,0,-91.3,40.79),stationReading(2,32,-91.43,40.7),stationReading(3,null,-91.6,40.65)]};
 await page.route(url=>url.href===STATION_QUERY,route=>route.fulfill({json:sampleFixture,headers:{'access-control-allow-origin':'*'}}));
+await page.route('**/Air_Sampling_and_Monitoring_Location/FeatureServer/0/query?*',route=>route.fulfill({
+  headers:{'access-control-allow-origin':'*'},json:{spatialReference:{wkid:4326},features:[
+    {geometry:{x:-91.9,y:40.49},attributes:{Station_ID:'AS-41',Instrument_Type:'Air Cassette, Summa Cannister'}},
+    {geometry:{x:-91.6,y:40.79},attributes:{Station_ID:'AS-42',Instrument_Type:'Dust Trak, AreaRAE, Air Cassette, Summa Cannister'}}
+  ]}
+}));
 // Do not let JSON key order decide which weather model opens first.
 await page.route('**/data/forecast.json', async route=>{
   const response=await route.fetch();
@@ -52,14 +58,9 @@ try {
   assert.match(await page.locator('.leaflet-popup-content').textContent(),/32 µg\/m³.*At or above screening level/);
   const network=page.getByRole('checkbox',{name:'EPA monitoring locations'});
   const rings=page.getByRole('checkbox',{name:'Distance rings'});
-  await page.route('**/Air_Sampling_and_Monitoring_Location/FeatureServer/0/query?*',route=>route.fulfill({
-    headers:{'access-control-allow-origin':'*'},json:{spatialReference:{wkid:4326},features:[
-      {geometry:{x:-91.9,y:40.49},attributes:{Station_ID:'AS-41',Instrument_Type:'Air Cassette, Summa Cannister'}},
-      {geometry:{x:-91.6,y:40.79},attributes:{Station_ID:'AS-42',Instrument_Type:'Dust Trak, AreaRAE, Air Cassette, Summa Cannister'}}
-    ]}
-  }));
-  assert.equal(await page.locator('.epa-location, .sampling-distance-ring').count(),0);
-  await network.check();
+  assert.equal(await network.isChecked(),true,'Open the EPA sampling tab with the monitoring network enabled');
+  assert.equal(await rings.isChecked(),false,'Do not show distance rings by default');
+  assert.equal(await page.locator('.sampling-distance-ring').count(),0);
   await page.locator('.epa-location').first().waitFor({timeout:12000});
   assert.equal(await page.locator('.epa-location').count(),2);
   assert.equal(await page.locator('.sampling-station').count(),3,'Locations do not become lead readings');
@@ -263,6 +264,7 @@ try {
   try{
     await matchSeedScenario(mobile);
     await mobile.route(url=>url.href===STATION_QUERY,route=>route.abort());
+    await mobile.route('**/Air_Sampling_and_Monitoring_Location/FeatureServer/0/query?*',route=>route.abort());
     await mobile.goto(`${origin}/`,{waitUntil:'domcontentloaded'});
     assert.equal(await mobile.getByRole('tab',{name:'EPA sampling'}).getAttribute('aria-selected'),'true');
     await mobile.getByText('EPA readings could not load.',{exact:false}).waitFor({timeout:12000});
