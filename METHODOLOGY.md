@@ -12,6 +12,8 @@ The sampling tab reads the public Xact feature layer used by the [EPA Region 7 d
 
 The map marks readings at or above the dashboard’s **32 µg/m³ short-term screening level (DOE PAC-1)** in red. That comparison is not a safety, regulatory, or individual exposure determination. A lower reading is not an all-clear. The source provides points, not a measured boundary; the map does not interpolate concentrations, characterize areas between stations, or combine air readings with soil or laboratory samples.
 
+The optional monitoring-locations overlay uses the EPA dashboard’s separate location layer. It contains station IDs and instrument types, not measurements. The optional 5-, 10-, and 20-mile rings are distances from the detonation-site marker, not contamination contours, sampling coverage, or advisory zones.
+
 ## Forecast data
 
 The collector requests valid hourly forecast times for Nov. 25–26, 2026 in the America/Chicago time zone from weather models surfaced through Open-Meteo. Each model is a separate source; the site does not merge different model winds into one trajectory. It samples **81 forecast points on a 9×9 latitude/longitude grid** around Middletown, and retains those point forecasts and their reported valid times in JSON. It does not claim these are the native numerical model grid nodes.

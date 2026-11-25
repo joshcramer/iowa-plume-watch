@@ -1,7 +1,7 @@
 import {PLANT,LEVELS,integrate,sourceWind,toCompass,validateSnapshot,localHour} from './trajectory.js?v=ntnt-8';
 import {createTransportOverlay,clockAt,usDate} from './overlay.js?v=ntnt-9';
 import {inspectNearestTrack,formatElapsed} from './inspect.js';
-import {createSamplingView,EVENT} from './sampling.js?v=1';
+import {createSamplingView,EVENT} from './sampling.js?v=2';
 
 const el=id=>document.getElementById(id);
 // Prefer GFS’s full set of wind levels, regardless of snapshot key order.
@@ -434,7 +434,9 @@ function safeRender(){
   }
 }
 makeMap();installControls();installTimeline();updateDateOptions();
-const sampling=createSamplingView({map:state.map,plant:PLANT,list:el('sampling-list'),status:el('sampling-status')});
+const sampling=createSamplingView({map:state.map,plant:PLANT,list:el('sampling-list'),status:el('sampling-status'),
+  networkToggle:el('network-toggle'),ringToggle:el('rings-toggle'),networkStatus:el('network-status'),
+  networkKey:el('network-key'),ringKey:el('ring-key')});
 installMapViews(sampling);loadForecast();loadExtended();loadOfficial();
 // A tab left open picks up newly published snapshots without a page reload.
 setInterval(()=>{if(!document.hidden)sampling.refresh();},60*1000);

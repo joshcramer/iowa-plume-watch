@@ -172,6 +172,13 @@ button.sampling-row:hover{background:#153141}
 .sampling-row small{grid-column:1/-1;color:#a6c0cb;font-size:.72rem;font-weight:500}
 .sampling-key{display:inline-block;flex:none;width:10px;height:10px;border-radius:50%;border:1px solid #edf5f8}
 .sampling-key.below{background:#127b89}.sampling-key.at-or-above{background:#c5263d}.sampling-key.missing{background:#657382}
+.sampling-key.location{background:#fff;border-color:#657382}
+.sampling-key.ring{width:17px;height:0;border:0;border-top:1px dashed currentColor;border-radius:0}
+.sampling-legend span[hidden]{display:none}
+.sampling-layers{min-width:0;border:0;margin:12px 0 0;padding:0;display:grid;gap:6px}
+.sampling-layers legend{padding:0;margin-bottom:6px;color:#c0d5dc;font-size:.76rem;font-weight:700}
+.sampling-layers .level-check{min-height:44px}
+.sampling-layers p{margin:0;color:#abc3cd;font-size:.75rem}
 .sampling-note{margin:0}
 .event-anchor{color:#d1e4e8;line-height:1.5;font-size:.89rem;margin:0 0 13px}
 .event-anchor a{font-size:.78rem;color:var(--cyan)}

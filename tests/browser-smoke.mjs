@@ -50,10 +50,28 @@ try {
   assert.match(await page.locator('#sampling-list').textContent(),/0 µg\/m³.*11\/25\/26.*9:40 AM CST/);
   await page.getByRole('button',{name:/Xact station AS02/}).click();
   assert.match(await page.locator('.leaflet-popup-content').textContent(),/32 µg\/m³.*At or above screening level/);
+  const network=page.getByRole('checkbox',{name:'EPA monitoring locations'});
+  const rings=page.getByRole('checkbox',{name:'Distance rings'});
+  await page.route('**/Air_Sampling_and_Monitoring_Location/FeatureServer/0/query?*',route=>route.fulfill({
+    headers:{'access-control-allow-origin':'*'},json:{spatialReference:{wkid:4326},features:[
+      {geometry:{x:-91.9,y:40.49},attributes:{Station_ID:'AS-41',Instrument_Type:'Air Cassette, Summa Cannister'}},
+      {geometry:{x:-91.6,y:40.79},attributes:{Station_ID:'AS-42',Instrument_Type:'Dust Trak, AreaRAE, Air Cassette, Summa Cannister'}}
+    ]}
+  }));
+  assert.equal(await page.locator('.epa-location, .sampling-distance-ring').count(),0);
+  await network.check();
+  await page.locator('.epa-location').first().waitFor({timeout:12000});
+  assert.equal(await page.locator('.epa-location').count(),2);
+  assert.equal(await page.locator('.sampling-station').count(),3,'Locations do not become lead readings');
+  assert.match(await page.locator('#network-status').textContent(),/2 EPA locations.*No lead values/);
+  await rings.check();
+  assert.equal(await page.locator('.sampling-distance-ring[fill="none"]').count(),3);
+  assert.match(await page.locator('#ring-key').textContent(),/5, 10 and 20 miles.*Distance only/);
   await sampling.focus();
   await page.keyboard.press('ArrowRight');
   assert.equal(await wind.getAttribute('aria-selected'),'true');
   assert.equal(await page.locator('.sampling-station').count(),0);
+  assert.equal(await page.locator('.epa-location, .sampling-distance-ring').count(),0);
   assert.match(await page.locator('#event-anchor').textContent(),/11\/25\/26.*9:00 a.m. CST/);
   await page.waitForFunction(
     () => document.querySelectorAll('.wind-path-svg .forecast-path').length >= 2,
@@ -294,6 +312,11 @@ try {
     assert.match(await page.locator('#timeline-start').textContent(),/REPORTED DETONATION/);
     await sampling.click();
     assert.equal(await page.locator('.sampling-station').count(),3);
+    assert.equal(await page.locator('.epa-location').count(),2);
+    assert.equal(await page.locator('.sampling-distance-ring').count(),3);
+    await network.uncheck();
+    await rings.uncheck();
+    assert.equal(await page.locator('.epa-location, .sampling-distance-ring').count(),0);
     assert.equal(await page.locator('.forecast-path:visible').count(),0);
     assert.deepEqual(errors,[],'No uncaught JavaScript errors');
   console.log('PASS browser map overlay and controls:',details);

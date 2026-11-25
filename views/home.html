@@ -23,6 +23,8 @@
             <span><i class="sampling-key below" aria-hidden="true"></i>Below 32 µg/m³</span>
             <span><i class="sampling-key at-or-above" aria-hidden="true"></i>At or above 32 µg/m³</span>
             <span><i class="sampling-key missing" aria-hidden="true"></i>No comparable reading</span>
+            <span id="network-key" hidden><i class="sampling-key location" aria-hidden="true"></i>EPA monitoring location · No value shown</span>
+            <span id="ring-key" hidden><i class="sampling-key ring" aria-hidden="true"></i>5, 10 and 20 miles from the site · Distance only</span>
           </div>
           <div class="map-footer" data-map-view="wind" aria-label="Wind map legend" hidden>
             <span><i class="legend-dot" aria-hidden="true"></i>Detonation site</span>
@@ -44,13 +46,19 @@
             <p class="timeline-note">Drag the slider to move the markers. Fainter lines show later positions.</p>
           </div>
           <div id="overlay-status" class="map-overlay-status" data-map-view="wind" role="status" hidden>Loading forecast wind paths…</div>
-          <p class="map-overlay-status sampling-note" data-map-view="sampling">Readings apply only to the marked locations and times. Blank areas are unmeasured on this map, not cleared.</p>
+          <p class="map-overlay-status sampling-note" data-map-view="sampling">Readings apply only to their locations and times. Areas without readings on this map are not cleared.</p>
           <div id="map-fallback" class="map-fallback" hidden>Base map could not load.</div>
         </div>
         <aside class="control-panel sampling-panel" data-map-view="sampling" aria-labelledby="sampling-heading">
           <div class="control-title" id="sampling-heading">EPA STATION READINGS</div>
           <p class="sampling-status" id="sampling-status" role="status">Loading EPA station readings…</p>
           <ul class="sampling-list" id="sampling-list" aria-label="Latest EPA readings per station"></ul>
+          <fieldset class="sampling-layers">
+            <legend>Map overlays</legend>
+            <label class="level-check"><input id="network-toggle" type="checkbox" aria-controls="network-status" aria-describedby="network-status"> EPA monitoring locations</label>
+            <label class="level-check"><input id="rings-toggle" type="checkbox" aria-controls="ring-key"> Distance rings</label>
+            <p id="network-status" role="status" hidden></p>
+          </fieldset>
           <p class="section-note">32 µg/m³ is the short-term lead screening level displayed by EPA (DOE PAC-1). A reading below it is not an all-clear. These are air monitor readings, not soil or lab results.</p>
           <a class="schedule-link" href="https://experience.arcgis.com/experience/1ddcf8b9d8314971b00dac8893ae9cd6">Open the EPA dashboard ↗</a>
         </aside>
