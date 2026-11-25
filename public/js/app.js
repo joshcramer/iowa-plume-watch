@@ -193,21 +193,10 @@ function renderLevelControls(model){
   }
 }
 function scenarioArchived(){return Boolean(state.archiveOn && chicagoToday()>=state.archiveOn);}
-function statusClass(snapshot){
-  if(snapshot?.status!=='forecast'||!snapshot.fetched_at_utc)return ['Awaiting forecast','pending'];
-  if(!state.model)return ['No data for this time','pending'];
-  const age=(Date.now()-new Date(snapshot.models?.[state.model]?.fetched_at_utc||snapshot.fetched_at_utc).getTime())/3600000;
-  if(scenarioArchived())return ['Archived forecast','archive'];
-  if(age>9)return ['Stale forecast · check timestamp','stale'];
-  return ['Forecast inputs available','live'];
-}
 function renderHeader(){
   const s=activeSnapshot();
   const fetched=s?.models?.[state.model]?.fetched_at_utc||s?.fetched_at_utc;
   const count=Object.values(s?.models||{}).filter(model=>modelHasWind(model,state.scenarioDate,state.release)).length;
-  const [label,kind]=statusClass(s);
-  el('forecast-badge').textContent=label;
-  el('forecast-badge').dataset.kind=kind;
   el('model-count').textContent=count?String(count):'0';
   el('updated-at').textContent=fetched?formatDate(fetched):'Pending';
   el('updated-foot').textContent=fetched?'Selected model download time, not model initialization':'Waiting for forecast data for this scenario';
@@ -215,7 +204,8 @@ function renderHeader(){
   el('event-date').textContent=day;
   el('release-date').textContent=state.scenarioDate?`${day} · CT`:'Central time';
   el('map-label').textContent=state.scenarioDate?`${day} · ${state.release===12?'Hypothetical noon':state.release<12?`${state.release}:00 a.m.`:`${state.release-12}:00 p.m.`} release`:'No verified scenario date';
-  const issue=state.loadError || (!s && state.snapshot?'No wind forecast is available for the current scenario. Paths from the earlier date are not shown.':kind==='stale'?'This model’s last download is more than nine hours old. Its paths may be outdated.':'');
+  const stale=s?.status==='forecast'&&s.fetched_at_utc&&state.model&&!scenarioArchived()&&(Date.now()-new Date(fetched).getTime())/3600000>9;
+  const issue=state.loadError || (!s && state.snapshot?'No wind forecast is available for the current scenario. Paths from the earlier date are not shown.':stale?'This model’s last download is more than nine hours old. Its paths may be outdated.':'');
   el('error-message').hidden=!issue;
   el('error-message').textContent=issue;
   el('horizon-select').value=String(state.duration);

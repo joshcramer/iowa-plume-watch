@@ -22,6 +22,12 @@ await page.route('**/data/forecast.json', async route=>{
 });
 const errors=[];
 page.on('pageerror',e=>errors.push(e.message));
+async function checkForecastIntro(page){
+  const forecast=page.locator('#forecast');
+  assert.equal(await forecast.locator('#forecast-badge').count(),0,'Forecast intro does not show a status badge');
+  assert.equal(await forecast.getByText('Wind paths, not an exposure map.',{exact:true}).count(),0,'Forecast intro does not show the standalone warning card');
+  assert.equal(await forecast.locator('#updated-at').isVisible(),true,'Keep the forecast fetch timestamp');
+}
 try {
   await matchSeedScenario(page);
   await page.goto(`${origin}/`,{waitUntil:'domcontentloaded',timeout:30000});
@@ -33,6 +39,7 @@ try {
     () => document.querySelectorAll('.wind-path-svg .forecast-path').length >= 2,
     null,{timeout:25000}
   );
+  await checkForecastIntro(page);
   assert.equal(await page.locator('.reference-route, .airport-marker, .davenport-marker, #route-distance').count(),0,
     'The public map must not render the personal itinerary, its endpoints, or route-distance readouts');
   assert.equal(await page.locator('img[src*="nov23-"]').count(),0,
@@ -209,6 +216,7 @@ try {
     await matchSeedScenario(mobile);
     await mobile.goto(`${origin}/`,{waitUntil:'domcontentloaded'});
     await mobile.waitForFunction(()=>document.querySelector('.forecast-path'),null,{timeout:25000});
+    await checkForecastIntro(mobile);
     const mobileLayout=await mobile.evaluate(()=>({top:document.querySelector('#map').getBoundingClientRect().top, width:document.documentElement.clientWidth, scroll:document.documentElement.scrollWidth}));
     assert.ok(mobileLayout.top<440,'Map should start within the first phone viewport');
     assert.ok(mobileLayout.scroll<=mobileLayout.width,'Page should not scroll sideways');
