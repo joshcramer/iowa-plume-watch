@@ -39,6 +39,8 @@ See [Database and event publishing](db/README.md) for the `ntnt db` workflow and
 
 `/stats` is a public, aggregate-only report for `iowaplumewatch.heylarri.com`. It reads daily rows from the existing app SQLite store; viewing it never calls Cloudflare. Dates are completed UTC days. Visits and HTML page views omit identified crawlers, whose page views are shown separately. Visits are not unique people. Cloudflare estimates can still include unclassified automation.
 
+The page-view chart and counts track only the canonical public page paths, `/` and `/stats`, never query strings, assets, API requests, or visitor histories.
+
 The optional hosted collector is a native NTNT script run by a user systemd timer at 03:20 UTC daily. See [`ops/README.md`](ops/README.md) for isolation, scheduling and release steps. The default local site does not need a credential or run the collector.
 
 ## Tests

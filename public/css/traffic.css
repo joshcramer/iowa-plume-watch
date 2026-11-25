@@ -26,3 +26,25 @@
 .traffic-notes{margin-top:2rem;border-top:1px solid var(--line);padding-top:1.25rem;font-size:.91rem}.traffic-notes p+p{margin-top:.7rem}.traffic-notes a{text-decoration:underline;text-underline-offset:.15em}
 .traffic-sr{position:absolute;width:1px;height:1px;padding:0;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
 @media (max-width:650px){.traffic-totals{grid-template-columns:repeat(2,minmax(0,1fr))}.traffic-totals>div:nth-child(3){border-left:0}.traffic-totals>div:nth-child(n+3){border-top:1px solid var(--line)}.traffic-table{min-width:41rem}.traffic-heading{align-items:start}.traffic-heading .action{margin-top:.2rem}}
+
+.traffic-chart{margin:0;border:1px solid var(--line);border-radius:.55rem;background:var(--card);padding:clamp(.65rem,2vw,1.15rem)}
+.traffic-chart-caption{font-size:.78rem;font-weight:700;color:#b5c8d2}
+.traffic-plot{display:block;width:100%;max-width:55rem;height:auto;margin:0 auto .65rem;overflow:visible}
+.traffic-plot-grid{stroke:#365569;stroke-width:1;vector-effect:non-scaling-stroke}
+.traffic-axis{fill:#b5c8d2;font-size:15px;font-variant-numeric:tabular-nums}
+.traffic-series-map{--series-color:var(--cyan)}.traffic-series-stats{--series-color:#ffc981}
+.traffic-plot-line{stroke:var(--series-color);stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round;fill:none;vector-effect:non-scaling-stroke}
+.traffic-series-stats .traffic-plot-line{stroke-dasharray:5 5}
+.traffic-plot-point{fill:var(--card);stroke:var(--series-color);stroke-width:1.5;vector-effect:non-scaling-stroke}
+.traffic-legend{list-style:none;padding:.8rem 0 0;margin:0;border-top:1px solid var(--line);display:grid;grid-template-columns:repeat(auto-fit,minmax(min(14rem,100%),1fr));gap:.55rem 1.25rem}
+.traffic-legend li{display:flex;align-items:center;gap:.55rem;color:var(--ink);font-size:.86rem}
+.traffic-legend strong{margin-left:auto;font-variant-numeric:tabular-nums}
+.traffic-legend code{color:#b5c8d2;margin-left:.2em}
+.traffic-swatch{width:1.45rem;border-top:3px solid var(--series-color);flex:none}
+.traffic-series-stats .traffic-swatch{border-top-style:dashed}
+.traffic-path-note{color:#b5c8d2;font-size:.85rem;margin:.85rem 0}
+.traffic-raw-counts{margin:.55rem 0 0}
+.traffic-raw-counts summary{min-height:44px;align-content:center;font-weight:700;cursor:pointer;font-size:.86rem;color:var(--ink);width:fit-content}
+.traffic-raw-counts summary:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+.traffic-path-table{min-width:0}
+@media(max-width:550px){.traffic-axis{font-size:22px}.traffic-chart{padding-inline:.62rem}}

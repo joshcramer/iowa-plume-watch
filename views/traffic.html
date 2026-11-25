@@ -17,6 +17,55 @@
     <div><dt>HTTP requests</dt><dd>{{display.requests}}</dd><p>Pages, files, APIs and bots</p></div>
     <div><dt>Data served</dt><dd>{{display.bytes}}</dd><p>Responses delivered by Cloudflare</p></div>
   </dl>
+  <section class="traffic-pages" id="page-views" aria-labelledby="traffic-pages-title">
+    <div class="traffic-heading traffic-subheading">
+      <div><h2 id="traffic-pages-title">Page views by URL</h2><p>Successful page loads per UTC day, excluding known crawlers. Query strings are not collected.</p></div>
+    </div>
+    {{#if path_report.available}}
+    <figure class="traffic-chart">
+      <figcaption class="traffic-chart-caption">Daily page views</figcaption>
+      <svg class="traffic-plot" viewBox="0 0 640 252" role="img" aria-label="Line chart of daily views for the map and stats pages. Exact counts follow in the table.">
+        {{#for tick in path_report.ticks}}
+        <line class="traffic-plot-grid" x1="58" x2="608" y1="{{tick.y}}" y2="{{tick.y}}" />
+        <text class="traffic-axis" x="48" y="{{tick.y}}" text-anchor="end" dy=".34em">{{tick.label}}</text>
+        {{/for}}
+        {{#for day in path_report.chart_days}}
+        {{#if day.tick}}<text class="traffic-axis" x="{{day.x}}" y="244" text-anchor="middle">{{day.label}}</text>{{/if}}
+        {{/for}}
+        {{#for series in path_report.series}}
+        <g class="traffic-series traffic-series-{{series.style}}">
+          <path class="traffic-plot-line" d="{{series.drawing}}" />
+          {{#for point in series.points}}
+          <circle class="traffic-plot-point" cx="{{point.x}}" cy="{{point.y}}" r="3.4"><title>{{series.name}}, {{point.label}}: {{point.count}} views</title></circle>
+          {{/for}}
+        </g>
+        {{/for}}
+      </svg>
+      <ul class="traffic-legend" aria-label="Page totals for this period">
+        {{#for series in path_report.series}}
+        <li class="traffic-series traffic-series-{{series.style}}"><span class="traffic-swatch" aria-hidden="true"></span><span>{{series.name}} <code>{{series.path}}</code></span><strong>{{series.total}} views</strong></li>
+        {{/for}}
+      </ul>
+    </figure>
+    {{#if path_report.incomplete}}<p class="traffic-path-note">A dash means no page-level data was collected for that day.</p>{{/if}}
+    <details class="traffic-raw-counts" open>
+      <summary>Daily counts by URL</summary>
+      <div class="traffic-table-wrap" tabindex="0" role="region" aria-label="Daily page views by URL">
+        <table class="traffic-table traffic-path-table">
+          <caption class="traffic-sr">Daily page views by URL, newest first</caption>
+          <thead><tr><th scope="col">Day (UTC)</th>{{#for series in path_report.series}}<th scope="col"><code>{{series.path}}</code></th>{{/for}}</tr></thead>
+          <tbody>
+            {{#for row in path_report.rows}}
+            <tr><th scope="row"><time datetime="{{row.day}}">{{row.label}}</time></th>{{#for cell in row.cells}}<td>{{cell}}</td>{{/for}}</tr>
+            {{/for}}
+          </tbody>
+        </table>
+      </div>
+    </details>
+    {{#else}}
+    <p class="traffic-path-note" role="status">No page-level counts yet. They’ll appear after the next collection.</p>
+    {{/if}}
+  </section>
   <div class="traffic-heading traffic-subheading">
     <div><h2>Daily activity</h2><p>Newest first. Bars show visits relative to the busiest day in this report.</p></div>
   </div>

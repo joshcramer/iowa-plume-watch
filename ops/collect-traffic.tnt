@@ -3,6 +3,7 @@ import { get_env, load_env } from "std/env"
 import { parse_json, stringify } from "std/json"
 import { fetch } from "std/http"
 import { now, format, parse_iso, add_days } from "std/time"
+import { tracked_traffic_pages } from "lib/traffic-paths"
 
 let HOST = "iowaplumewatch.heylarri.com"
 let BASE = "https://api.cloudflare.com/client/v4"
@@ -30,16 +31,26 @@ fn collect(key: String, clock: Int) -> Map {
     }
     let clean = map { "AND": [pages, map { "verifiedBotCategory": "" }] }
     let crawlers = map { "AND": [pages, map { "verifiedBotCategory_neq": "" }] }
+    let mut paths = []
+    let mut empty_counts = map {}
+    for page in tracked_traffic_pages() {
+        let path = page["path"]
+        paths = push(paths, path)
+        empty_counts[path] = 0
+    }
+    let page_filter = map { "AND": [clean, map { "clientRequestPath_in": paths }] }
+    let path_limit = 14 * len(paths)
     let q = r#"
-        query DailyTraffic($zone:String!, $all:ZoneHttpRequestsAdaptiveGroupsFilter_InputObject!, $clean:ZoneHttpRequestsAdaptiveGroupsFilter_InputObject!, $crawler:ZoneHttpRequestsAdaptiveGroupsFilter_InputObject!) {
+        query DailyTraffic($zone:String!, $all:ZoneHttpRequestsAdaptiveGroupsFilter_InputObject!, $clean:ZoneHttpRequestsAdaptiveGroupsFilter_InputObject!, $crawler:ZoneHttpRequestsAdaptiveGroupsFilter_InputObject!, $pathFilter:ZoneHttpRequestsAdaptiveGroupsFilter_InputObject!, $pathLimit:Int!) {
           viewer { zones(filter:{zoneTag:$zone}) {
             requests: httpRequestsAdaptiveGroups(limit: 15, filter:$all) { count sum { edgeResponseBytes } dimensions { date clientRequestHTTPHost } }
             pages: httpRequestsAdaptiveGroups(limit: 15, filter:$clean) { count sum { visits } dimensions { date clientRequestHTTPHost } }
             crawlers: httpRequestsAdaptiveGroups(limit: 15, filter:$crawler) { count dimensions { date clientRequestHTTPHost } }
+            pathPages: httpRequestsAdaptiveGroups(limit:$pathLimit, filter:$pathFilter) { count dimensions { date clientRequestPath clientRequestHTTPHost } }
           } }
         }
     "#
-    let out = call_provider("/graphql", key, map { "query": q, "variables": map { "zone": zones[0]["id"], "all": f, "clean": clean, "crawler": crawlers } })
+    let out = call_provider("/graphql", key, map { "query": q, "variables": map { "zone": zones[0]["id"], "all": f, "clean": clean, "crawler": crawlers, "pathFilter": page_filter, "pathLimit": path_limit + 1 } })
     let errors = out["errors"]
     if is_array(errors) && len(errors) > 0 { panic("Cloudflare declined the daily traffic query") }
     let measured = out["data"]["viewer"]["zones"]
@@ -49,7 +60,7 @@ fn collect(key: String, clock: Int) -> Map {
     // Bounded range (14 dates), independent of the upstream result size or order.
     for offset in [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13] {
         let day = format(add_days(start, offset), "%Y-%m-%d")
-        days[day] = map { "day": day, "requests": 0, "bytes": 0, "visits": 0, "views": 0, "crawler_views": 0 }
+        days[day] = map { "day": day, "requests": 0, "bytes": 0, "visits": 0, "views": 0, "crawler_views": 0, "path_views": empty_counts }
     }
     for label in ["requests", "pages", "crawlers"] {
         let groups = series[label]
@@ -80,6 +91,27 @@ fn collect(key: String, clock: Int) -> Map {
             }
             days[date_key] = entry
         }
+    }
+    let path_groups = series["pathPages"]
+    if !is_array(path_groups) || len(path_groups) > path_limit { panic("Invalid Cloudflare page group count") }
+    let mut seen_paths = map {}
+    for row in path_groups {
+        let dims = row["dimensions"]
+        let day = dims["date"]
+        let path = dims["clientRequestPath"]
+        if dims["clientRequestHTTPHost"] != HOST || !is_string(day) || !is_map(days[day]) || !is_string(path) || !is_int(empty_counts[path]) {
+            panic("Cloudflare returned an unexpected page group")
+        }
+        let key = day + ":" + path
+        if seen_paths[key] ?? false { panic("Cloudflare returned a duplicate page group") }
+        seen_paths[key] = true
+        let count = row["count"]
+        assert(is_int(count) && count >= 0)
+        let mut entry = days[day]
+        let mut counts = entry["path_views"]
+        counts[path] = count
+        entry["path_views"] = counts
+        days[day] = entry
     }
     let mut batch = []
     for key in keys(days) { batch = push(batch, days[key]) }
