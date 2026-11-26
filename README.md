@@ -41,6 +41,8 @@ See [Database and event publishing](db/README.md) for the `ntnt db` workflow and
 
 The page-view chart and counts track only the canonical public page paths, `/` and `/stats`, never query strings, assets, API requests, or visitor histories.
 
+The delivery report separates Cloudflare cache hits, recorded server responses, and other requests by content type. It also shows daily HTTP 5xx counts and p95 server response duration (not page load time).
+
 The optional hosted collector is a native NTNT script run by a user systemd timer at 03:20 UTC daily. See [`ops/README.md`](ops/README.md) for isolation, scheduling and release steps. The default local site does not need a credential or run the collector.
 
 ## Tests

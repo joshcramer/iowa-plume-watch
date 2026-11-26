@@ -5,6 +5,7 @@ import { fetch } from "std/http"
 import { now, format, parse_iso, add_days } from "std/time"
 import { tracked_traffic_pages } from "lib/traffic-paths"
 import { traffic_audience_key } from "lib/traffic-audience"
+import { empty_delivery, delivery_content_type, delivery_bucket, delivery_count, valid_delivery_metrics } from "lib/traffic-delivery"
 
 let HOST = "iowaplumewatch.heylarri.com"
 let BASE = "https://api.cloudflare.com/client/v4"
@@ -42,7 +43,7 @@ fn collect(key: String, clock: Int) -> Map {
     let page_filter = map { "AND": [clean, map { "clientRequestPath_in": paths }] }
     let path_limit = 14 * len(paths)
     let q = r#"
-        query DailyTraffic($zone:String!, $all:ZoneHttpRequestsAdaptiveGroupsFilter_InputObject!, $clean:ZoneHttpRequestsAdaptiveGroupsFilter_InputObject!, $crawler:ZoneHttpRequestsAdaptiveGroupsFilter_InputObject!, $pathFilter:ZoneHttpRequestsAdaptiveGroupsFilter_InputObject!, $pathLimit:Int!) {
+        query DailyTraffic($zone:String!, $all:ZoneHttpRequestsAdaptiveGroupsFilter_InputObject!, $clean:ZoneHttpRequestsAdaptiveGroupsFilter_InputObject!, $crawler:ZoneHttpRequestsAdaptiveGroupsFilter_InputObject!, $pathFilter:ZoneHttpRequestsAdaptiveGroupsFilter_InputObject!, $pathLimit:Int!, $errors:ZoneHttpRequestsAdaptiveGroupsFilter_InputObject!, $timed:ZoneHttpRequestsAdaptiveGroupsFilter_InputObject!) {
           viewer { zones(filter:{zoneTag:$zone}) {
             requests: httpRequestsAdaptiveGroups(limit: 15, filter:$all) { count sum { edgeResponseBytes } dimensions { date clientRequestHTTPHost } }
             pages: httpRequestsAdaptiveGroups(limit: 15, filter:$clean) { count sum { visits } dimensions { date clientRequestHTTPHost } }
@@ -50,10 +51,15 @@ fn collect(key: String, clock: Int) -> Map {
             pathPages: httpRequestsAdaptiveGroups(limit:$pathLimit, filter:$pathFilter) { count dimensions { date clientRequestPath clientRequestHTTPHost } }
             countries: httpRequestsAdaptiveGroups(limit:3601, filter:$clean) { count dimensions { date clientCountryName clientRequestHTTPHost } }
             devices: httpRequestsAdaptiveGroups(limit:141, filter:$clean) { count dimensions { date clientDeviceType clientRequestHTTPHost } }
+            delivery: httpRequestsAdaptiveGroups(limit:2001, filter:$all) { count dimensions { date clientRequestHTTPHost edgeResponseContentTypeName cacheStatus originResponseStatus } }
+            failures: httpRequestsAdaptiveGroups(limit:15, filter:$errors) { count dimensions { date clientRequestHTTPHost } }
+            latency: httpRequestsAdaptiveGroups(limit:15, filter:$timed) { quantiles { originResponseDurationMsP95 } dimensions { date clientRequestHTTPHost } }
           } }
         }
     "#
-    let out = call_provider("/graphql", key, map { "query": q, "variables": map { "zone": zones[0]["id"], "all": f, "clean": clean, "crawler": crawlers, "pathFilter": page_filter, "pathLimit": path_limit + 1 } })
+    let failures_filter = map { "AND": [f, map { "edgeResponseStatus_geq": 500, "edgeResponseStatus_lt": 600 }] }
+    let timing_filter = map { "AND": [f, map { "originResponseStatus_gt": 0, "originResponseDurationMs_gt": 0 }] }
+    let out = call_provider("/graphql", key, map { "query": q, "variables": map { "zone": zones[0]["id"], "all": f, "clean": clean, "crawler": crawlers, "pathFilter": page_filter, "pathLimit": path_limit + 1, "errors": failures_filter, "timed": timing_filter } })
     let errors = out["errors"]
     if is_array(errors) && len(errors) > 0 { panic("Cloudflare declined the daily traffic query") }
     let measured = out["data"]["viewer"]["zones"]
@@ -63,7 +69,7 @@ fn collect(key: String, clock: Int) -> Map {
     // Bounded range (14 dates), independent of the upstream result size or order.
     for offset in [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13] {
         let day = format(add_days(start, offset), "%Y-%m-%d")
-        days[day] = map { "day": day, "requests": 0, "bytes": 0, "visits": 0, "views": 0, "crawler_views": 0, "path_views": empty_counts, "audience": map { "countries": map {}, "devices": map {} } }
+        days[day] = map { "day": day, "requests": 0, "bytes": 0, "visits": 0, "views": 0, "crawler_views": 0, "path_views": empty_counts, "audience": map { "countries": map {}, "devices": map {} }, "delivery": empty_delivery() }
     }
     for label in ["requests", "pages", "crawlers"] {
         let groups = series[label]
@@ -143,8 +149,52 @@ fn collect(key: String, clock: Int) -> Map {
             days[day] = entry
         }
     }
+    let mut seen_delivery = map {}
+    for metric in ["delivery", "failures", "latency"] {
+        let groups = series[metric]
+        if !is_array(groups) || len(groups) > (if metric == "delivery" { 2000 } else { 14 }) { panic("Invalid Cloudflare delivery group count") }
+        for row in groups {
+            let dims = row["dimensions"]
+            let day = dims["date"]
+            if dims["clientRequestHTTPHost"] != HOST || !is_string(day) || !is_map(days[day]) { panic("Unexpected Cloudflare delivery host or day") }
+            let mut entry = days[day]
+            let mut delivery = entry["delivery"]
+            let prefix = metric + ":" + day
+            if metric == "delivery" {
+                let content = dims["edgeResponseContentTypeName"] ?? ""
+                let cache = dims["cacheStatus"] ?? ""
+                let origin = dims["originResponseStatus"]
+                let count = row["count"]
+                assert(is_string(content) && len(content) <= 64 && is_string(cache) && len(cache) <= 32)
+                assert(is_int(origin) && origin >= 0 && origin <= 999 && delivery_count(count))
+                let identity = stringify([prefix, content, cache, origin])
+                if seen_delivery[identity] ?? false { panic("Duplicate Cloudflare cache group") }
+                seen_delivery[identity] = true
+                let kind = delivery_content_type(content)
+                let bucket = delivery_bucket(cache, origin)
+                delivery["by_type"][kind][bucket] = delivery["by_type"][kind][bucket] + count
+            } else {
+                if seen_delivery[prefix] ?? false { panic("Duplicate Cloudflare delivery day") }
+                seen_delivery[prefix] = true
+                if metric == "failures" {
+                    assert(delivery_count(row["count"]))
+                    delivery["errors_5xx"] = row["count"]
+                } else {
+                    let p95 = row["quantiles"]["originResponseDurationMsP95"]
+                    assert(delivery_count(p95))
+                    delivery["p95_ms"] = p95
+                }
+            }
+            entry["delivery"] = delivery
+            days[day] = entry
+        }
+    }
     let mut batch = []
-    for key in keys(days) { batch = push(batch, days[key]) }
+    for key in keys(days) {
+        let row = days[key]
+        assert(valid_delivery_metrics(row["delivery"]))
+        batch = push(batch, row)
+    }
     return map { "host": HOST, "collected_at": clock, "days": batch }
 }
 let path = get_env("PLUME_TRAFFIC_CREDENTIALS") ?? ""

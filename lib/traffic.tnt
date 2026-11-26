@@ -6,6 +6,7 @@ import { parse_iso, format, format_in } from "std/time"
 import { tracked_traffic_pages } from "lib/traffic-paths"
 import { traffic_device_labels, valid_audience_views } from "lib/traffic-audience"
 import { traffic_country_name } from "lib/traffic-country-names"
+import { delivery_types, delivery_buckets, empty_delivery, valid_delivery_metrics } from "lib/traffic-delivery"
 
 fn traffic_host() -> String { return "iowaplumewatch.heylarri.com" }
 
@@ -33,18 +34,20 @@ fn store_traffic(payload: Map) -> Result<Int, String> {
         }
         if has_key(row, "path_views") && !valid_path_views(row["path_views"]) { return Err("invalid page counts") }
         if has_key(row, "audience") && !valid_audience_views(row["audience"]) { return Err("invalid audience counts") }
+        if has_key(row, "delivery") && !valid_delivery_metrics(row["delivery"]) { return Err("invalid delivery metrics") }
     }
     return execute_statement(r#"
-        INSERT INTO site_traffic_daily (host, utc_day, collected_at, requests, bytes, visits, views, crawler_views, path_views, audience_views)
+        INSERT INTO site_traffic_daily (host, utc_day, collected_at, requests, bytes, visits, views, crawler_views, path_views, audience_views, delivery_metrics)
         SELECT ?, json_extract(value, '$.day'), ?, json_extract(value, '$.requests'),
                json_extract(value, '$.bytes'), json_extract(value, '$.visits'),
-               json_extract(value, '$.views'), json_extract(value, '$.crawler_views'), json_extract(value, '$.path_views'), json_extract(value, '$.audience')
+               json_extract(value, '$.views'), json_extract(value, '$.crawler_views'), json_extract(value, '$.path_views'), json_extract(value, '$.audience'), json_extract(value, '$.delivery')
         FROM json_each(?) WHERE true
         ON CONFLICT (host, utc_day) DO UPDATE SET
             collected_at=excluded.collected_at, requests=excluded.requests, bytes=excluded.bytes,
             visits=excluded.visits, views=excluded.views, crawler_views=excluded.crawler_views,
             path_views=coalesce(excluded.path_views, site_traffic_daily.path_views),
-            audience_views=coalesce(excluded.audience_views, site_traffic_daily.audience_views)
+            audience_views=coalesce(excluded.audience_views, site_traffic_daily.audience_views),
+            delivery_metrics=coalesce(excluded.delivery_metrics, site_traffic_daily.delivery_metrics)
         WHERE excluded.collected_at >= site_traffic_daily.collected_at
     "#, [traffic_host(), collected_at, stringify(rows)])
 }
@@ -80,7 +83,7 @@ fn format_bytes(n: Int) -> String {
 }
 
 fn traffic_report(clock: Int) -> Map {
-    let saved = query_rows("SELECT utc_day, collected_at, requests, bytes, visits, views, crawler_views, coalesce(path_views, '') AS path_views, coalesce(audience_views, '') AS audience_views FROM site_traffic_daily WHERE host = ? ORDER BY utc_day DESC LIMIT 14", [traffic_host()])
+    let saved = query_rows("SELECT utc_day, collected_at, requests, bytes, visits, views, crawler_views, coalesce(path_views, '') AS path_views, coalesce(audience_views, '') AS audience_views, coalesce(delivery_metrics, '') AS delivery_metrics FROM site_traffic_daily WHERE host = ? ORDER BY utc_day DESC LIMIT 14", [traffic_host()])
     if is_err(saved) { return map { "available": false, "unavailable": true } }
     let rows = unwrap(saved)
     if len(rows) == 0 { return map { "available": false } }
@@ -114,7 +117,50 @@ fn traffic_report(clock: Int) -> Map {
     totals["day_count"] = len(trend)
     totals["path_report"] = page_path_report(rows)
     totals["audience"] = audience_report(rows)
+    totals["delivery"] = delivery_report(rows)
     return totals
+}
+
+fn delivery_report(rows: Array) -> Map {
+    let types = delivery_types()
+    let buckets = delivery_buckets()
+    let mut sums = empty_delivery()["by_type"]
+    let mut daily = []
+    let mut measured = 0
+    for row in rows {
+        let raw = row["delivery_metrics"]
+        let data = if raw == "" { map {} } else { parse_json(raw) ?? map {} }
+        let available = valid_delivery_metrics(data)
+        if available {
+            measured = measured + 1
+            for key in keys(types) {
+                let mut bin = sums[key]
+                for bucket in buckets { bin[bucket] = bin[bucket] + data["by_type"][key][bucket] }
+                sums[key] = bin
+            }
+        }
+        let day = row["utc_day"]
+        let label = format(unwrap(parse_iso(day + "T00:00:00Z")), "%m/%d/%y")
+        let p95 = data["p95_ms"]
+        daily = push(daily, map { "day": day, "label": label,
+            "errors": if available { format_count(data["errors_5xx"]) } else { "—" },
+            "p95": if available && is_int(p95) { format_count(p95) + " ms" } else { "—" } })
+    }
+    let mut by_type = []
+    let mut all = map { "cache": 0, "origin": 0, "other": 0 }
+    for key in ["html", "json", "js", "css", "other"] {
+        let bin = sums[key]
+        for bucket in buckets { all[bucket] = all[bucket] + bin[bucket] }
+        by_type = push(by_type, delivery_display(types[key], bin))
+    }
+    return map { "available": measured > 0, "incomplete": measured < len(rows), "by_type": by_type, "totals": delivery_display("All requests", all), "daily": daily }
+}
+
+fn delivery_display(label: String, bin: Map) -> Map {
+    let hits = bin["cache"]
+    let total = hits + bin["origin"] + bin["other"]
+    let share = if total == 0 { "—" } else if hits == 0 { "0%" } else { audience_bin(label, hits, total)["share"] }
+    return map { "label": label, "cache": format_count(hits), "origin": format_count(bin["origin"]), "other": format_count(bin["other"]), "share": share }
 }
 
 fn audience_report(rows: Array) -> Map {
