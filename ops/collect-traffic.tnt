@@ -6,6 +6,7 @@ import { now, format, parse_iso, add_days } from "std/time"
 import { tracked_traffic_pages } from "lib/traffic-paths"
 import { traffic_audience_key } from "lib/traffic-audience"
 import { empty_delivery, delivery_content_type, delivery_bucket, delivery_count, valid_delivery_metrics } from "lib/traffic-delivery"
+import { empty_insights, insight_label, priority_traffic_routes, valid_insights } from "lib/traffic-insights"
 
 let HOST = "iowaplumewatch.heylarri.com"
 let BASE = "https://api.cloudflare.com/client/v4"
@@ -19,6 +20,73 @@ fn call_provider(path: String, key: String, payload) {
     let body = parse_json(reply["body"]) otherwise { return unwrap(Err("Cloudflare traffic returned invalid JSON")) }
     assert(is_map(body))
     return body
+}
+
+fn collect_insights(key: String, zone: String, base: Map, pages: Map, days: Map) -> Map {
+    let route = map { "clientRequestPath_in": keys(priority_traffic_routes()) }
+    let seen_routes = map { "AND": [base, route] }
+    let missing = map { "AND": [seen_routes, map { "edgeResponseStatus": 404 }] }
+    let failures = map { "AND": [seen_routes, map { "edgeResponseStatus_geq": 500, "edgeResponseStatus_lt": 600 }] }
+    let timed = map { "AND": [seen_routes, map { "originResponseStatus_gt": 0, "originResponseDurationMs_gt": 0 }] }
+    let known = map { "AND": [base, map { "verifiedBotCategory_neq": "" }] }
+    let q = r#"
+        query Insights($z:String!, $r:ZoneHttpRequestsAdaptiveGroupsFilter_InputObject!, $m:ZoneHttpRequestsAdaptiveGroupsFilter_InputObject!, $f:ZoneHttpRequestsAdaptiveGroupsFilter_InputObject!, $t:ZoneHttpRequestsAdaptiveGroupsFilter_InputObject!, $p:ZoneHttpRequestsAdaptiveGroupsFilter_InputObject!, $b:ZoneHttpRequestsAdaptiveGroupsFilter_InputObject!) {
+          viewer { zones(filter:{zoneTag:$z}) {
+            routes: httpRequestsAdaptiveGroups(limit:99,filter:$r) { count sum { edgeResponseBytes } dimensions { date clientRequestHTTPHost clientRequestPath } }
+            missing: httpRequestsAdaptiveGroups(limit:99,filter:$m) { count dimensions { date clientRequestHTTPHost clientRequestPath } }
+            failures: httpRequestsAdaptiveGroups(limit:99,filter:$f) { count dimensions { date clientRequestHTTPHost clientRequestPath } }
+            timed: httpRequestsAdaptiveGroups(limit:99,filter:$t) { count quantiles { originResponseDurationMsP95 } dimensions { date clientRequestHTTPHost clientRequestPath } }
+            browsers: httpRequestsAdaptiveGroups(limit:1401,filter:$p) { count dimensions { date clientRequestHTTPHost userAgentBrowser } }
+            bots: httpRequestsAdaptiveGroups(limit:1401,filter:$b) { count dimensions { date clientRequestHTTPHost verifiedBotCategory } }
+          } }
+        }
+    "#
+    let out = call_provider("/graphql", key, map { "query":q, "variables":map { "z":zone, "r":seen_routes, "m":missing, "f":failures, "t":timed, "p":pages, "b":known } })
+    if len(out["errors"] ?? []) != 0 { panic("Cloudflare declined the insight query") }
+    let zones = out["data"]["viewer"]["zones"]
+    assert(is_array(zones) && len(zones) == 1)
+    let mut updated = days
+    for metric in ["routes", "missing", "failures", "timed", "browsers", "bots"] {
+        let groups = zones[0][metric]
+        let categorical = metric == "browsers" || metric == "bots"
+        let cap = if categorical { 1400 } else { 14 * len(keys(priority_traffic_routes())) }
+        if !is_array(groups) || len(groups) > cap { panic("Insight query exceeded its bounds") }
+        let mut seen = map {}
+        for result in groups {
+            let d = result["dimensions"]
+            let day = d["date"]
+            let name = d[if metric == "browsers" { "userAgentBrowser" } else if metric == "bots" { "verifiedBotCategory" } else { "clientRequestPath" }] ?? ""
+            let number = result["count"]
+            if d["clientRequestHTTPHost"] != HOST || !is_string(day) || !is_map(updated[day]) || !is_string(name) || len(name) > 64 || !delivery_count(number) { panic("Unexpected Cloudflare insight group") }
+            let id = stringify([day, name])
+            if seen[id] ?? false { panic("Duplicate Cloudflare insight group") }
+            seen[id] = true
+            let mut row = updated[day]
+            let mut insight = row["insights"]
+            if categorical {
+                let label = insight_label(metric, name)
+                let mut bins = insight[metric]
+                bins[label] = (bins[label] ?? 0) + number
+                insight[metric] = bins
+            } else {
+                let mut entries = insight["routes"]
+                let mut detail = entries[name]
+                if !is_map(detail) { panic("Unexpected priority route from Cloudflare") }
+                if metric == "routes" {
+                    detail["requests"] = number
+                    detail["bytes"] = result["sum"]["edgeResponseBytes"]
+                } else {
+                    detail[metric] = number
+                    if metric == "timed" { detail["p95"] = result["quantiles"]["originResponseDurationMsP95"] }
+                }
+                entries[name] = detail
+                insight["routes"] = entries
+            }
+            row["insights"] = insight
+            updated[day] = row
+        }
+    }
+    return updated
 }
 fn collect(key: String, clock: Int) -> Map {
     let found = call_provider("/zones?name=heylarri.com&per_page=5", key, None)
@@ -48,7 +116,7 @@ fn collect(key: String, clock: Int) -> Map {
             requests: httpRequestsAdaptiveGroups(limit: 15, filter:$all) { count sum { edgeResponseBytes } dimensions { date clientRequestHTTPHost } }
             pages: httpRequestsAdaptiveGroups(limit: 15, filter:$clean) { count sum { visits } dimensions { date clientRequestHTTPHost } }
             crawlers: httpRequestsAdaptiveGroups(limit: 15, filter:$crawler) { count dimensions { date clientRequestHTTPHost } }
-            pathPages: httpRequestsAdaptiveGroups(limit:$pathLimit, filter:$pathFilter) { count dimensions { date clientRequestPath clientRequestHTTPHost } }
+            pathPages: httpRequestsAdaptiveGroups(limit:$pathLimit, filter:$pathFilter) { count sum { visits } dimensions { date clientRequestPath clientRequestHTTPHost } }
             countries: httpRequestsAdaptiveGroups(limit:3601, filter:$clean) { count dimensions { date clientCountryName clientRequestHTTPHost } }
             devices: httpRequestsAdaptiveGroups(limit:141, filter:$clean) { count dimensions { date clientDeviceType clientRequestHTTPHost } }
             delivery: httpRequestsAdaptiveGroups(limit:2001, filter:$all) { count dimensions { date clientRequestHTTPHost edgeResponseContentTypeName cacheStatus originResponseStatus } }
@@ -69,7 +137,7 @@ fn collect(key: String, clock: Int) -> Map {
     // Bounded range (14 dates), independent of the upstream result size or order.
     for offset in [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13] {
         let day = format(add_days(start, offset), "%Y-%m-%d")
-        days[day] = map { "day": day, "requests": 0, "bytes": 0, "visits": 0, "views": 0, "crawler_views": 0, "path_views": empty_counts, "audience": map { "countries": map {}, "devices": map {} }, "delivery": empty_delivery() }
+        days[day] = map { "day": day, "requests": 0, "bytes": 0, "visits": 0, "views": 0, "crawler_views": 0, "path_views": empty_counts, "audience": map { "countries": map {}, "devices": map {} }, "delivery": empty_delivery(), "insights": empty_insights() }
     }
     for label in ["requests", "pages", "crawlers"] {
         let groups = series[label]
@@ -120,6 +188,11 @@ fn collect(key: String, clock: Int) -> Map {
         let mut counts = entry["path_views"]
         counts[path] = count
         entry["path_views"] = counts
+        let mut insights = entry["insights"]
+        let mut entries = insights["entries"]
+        entries[path] = row["sum"]["visits"]
+        insights["entries"] = entries
+        entry["insights"] = insights
         days[day] = entry
     }
     for dimension in ["countries", "devices"] {
@@ -189,10 +262,12 @@ fn collect(key: String, clock: Int) -> Map {
             days[day] = entry
         }
     }
+    let enriched = collect_insights(key, zones[0]["id"], f, page_filter, days)
     let mut batch = []
     for key in keys(days) {
-        let row = days[key]
+        let row = enriched[key]
         assert(valid_delivery_metrics(row["delivery"]))
+        assert(valid_insights(row["insights"]))
         batch = push(batch, row)
     }
     return map { "host": HOST, "collected_at": clock, "days": batch }

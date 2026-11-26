@@ -24,7 +24,12 @@ if [ "${TRAFFIC_EXPECT_DELIVERY:-0}" = 1 ]; then
   printf '%s' "$report" | grep -q 'Server p95'
   printf '%s' "$report" | grep -q 'traffic-delivery-grid'
 fi
-if printf '%s' "$report" | grep -Eq '/assets/js/(app\.js|event-timeline\.js|vendor/leaflet\.js)'; then
+if [ "${TRAFFIC_EXPECT_INSIGHTS:-0}" = 1 ]; then
+  for label in 'Top entry pages' 'Priority route health' 'Largest transfers' 'Browser families' 'Known crawlers' 'traffic-insight-evidence'; do
+    printf '%s' "$report" | grep -q "$label" || { printf 'Missing stats insight: %s\n' "$label" >&2; exit 1; }
+  done
+fi
+if printf '%s' "$report" | grep -Eq '/assets/js/(app\.js|event-timeline\.js|vendor/leaflet\.js|.*beacon)|cloudflareinsights\.com/beacon'; then
   printf '%s\n' 'Map scripts must not load on /stats' >&2
   exit 1
 fi

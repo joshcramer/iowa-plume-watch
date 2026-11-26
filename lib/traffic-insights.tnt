@@ -1,0 +1,52 @@
+import { tracked_traffic_pages } from "lib/traffic-paths"
+import { delivery_count } from "lib/traffic-delivery"
+import { has_key } from "std/collections"
+
+fn priority_traffic_routes() -> Map {
+    return map { "/": "Map", "/stats": "Site stats", "/data/forecast.json": "Wind forecast", "/data/extended-tracks.json": "Wind tracks", "/data/official-status.json": "Official status", "/data/official-updates.json": "Official updates", "/data/source-watch.json": "Source watch" }
+}
+
+fn insight_label(kind: String, raw: String) -> String {
+    if kind == "browsers" {
+        let names = map { "MobileSafari": "Safari", "Safari": "Safari", "Chrome": "Chrome", "ChromeMobile": "Chrome", "ChromeMobileiOS": "Chrome", "ChromeMobileWebView": "Chrome WebView", "Edge": "Edge", "EdgeMobile": "Edge", "Firefox": "Firefox", "FirefoxMobile": "Firefox", "SamsungInternet": "Samsung Internet", "Opera": "Opera", "OperaMobile": "Opera" }
+        return names[raw] ?? "Other or unknown"
+    }
+    let known = ["Search Engine Crawler", "Page Preview", "Security", "Monitoring & Analytics", "AI Assistant", "AI Crawler", "AI Search", "Accessibility", "Webhooks"]
+    for label in known { if label == raw { return raw } }
+    return "Other known bots"
+}
+
+fn empty_insights() -> Map {
+    let mut entries = map {}
+    let mut routes = map {}
+    for page in tracked_traffic_pages() { entries[page["path"]] = 0 }
+    for path in keys(priority_traffic_routes()) { routes[path] = map { "requests": 0, "bytes": 0, "missing": 0, "failures": 0, "timed": 0 } }
+    return map { "entries": entries, "routes": routes, "browsers": map {}, "bots": map {} }
+}
+
+fn valid_insights(data) -> Bool {
+    if !is_map(data) || len(keys(data)) != 4 { return false }
+    let routes = priority_traffic_routes()
+    let pages = tracked_traffic_pages()
+    if !is_map(data["entries"]) || len(keys(data["entries"])) != len(pages) || !is_map(data["routes"]) || len(keys(data["routes"])) != len(keys(routes)) { return false }
+    for page in pages { if !delivery_count(data["entries"][page["path"]]) { return false } }
+    for path in keys(routes) {
+        let item = data["routes"][path]
+        if !is_map(item) { return false }
+        let timing = has_key(item, "p95")
+        if len(keys(item)) != (if timing { 6 } else { 5 }) { return false }
+        for key in ["requests", "bytes", "missing", "failures", "timed"] { if !delivery_count(item[key]) { return false } }
+        if timing && (!delivery_count(item["p95"]) || item["p95"] <= 0 || item["timed"] <= 0) { return false }
+        if !timing && item["timed"] != 0 { return false }
+    }
+    let browser_labels = map { "Safari": true, "Chrome": true, "Chrome WebView": true, "Edge": true, "Firefox": true, "Samsung Internet": true, "Opera": true, "Other or unknown": true }
+    for kind in ["browsers", "bots"] {
+        let bins = data[kind]
+        if !is_map(bins) { return false }
+        for key in keys(bins) {
+            let known = if kind == "browsers" { has_key(browser_labels, key) } else { insight_label(kind, key) == key }
+            if !known || !delivery_count(bins[key]) { return false }
+        }
+    }
+    return true
+}
