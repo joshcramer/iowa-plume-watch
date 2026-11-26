@@ -12,11 +12,68 @@
     <div>{{#if stale}}<strong class="traffic-warning">Update delayed.</strong> {{/if}}Last collected {{collected_display}}.</div>
   </div>
   <dl class="traffic-totals">
-    <div><dt>Visits</dt><dd>{{display.visits}}</dd><p>Arrivals from outside the site</p></div>
+    <div><dt>Visits</dt><dd>{{display.visits}}</dd><p>Estimated entries to the site</p></div>
     <div><dt>Page views</dt><dd>{{display.views}}</dd><p>Successful HTML page loads</p></div>
     <div><dt>HTTP requests</dt><dd>{{display.requests}}</dd><p>Pages, files, APIs and bots</p></div>
     <div><dt>Data served</dt><dd>{{display.bytes}}</dd><p>Responses delivered by Cloudflare</p></div>
   </dl>
+  <section id="insights" aria-labelledby="traffic-insights-title">
+    <div class="traffic-heading traffic-subheading">
+      <div><h2 id="traffic-insights-title">Traffic insights</h2><p>Where visits start and which parts of the site are worth a closer look.</p></div>
+    </div>
+    {{#if insights.available}}
+    {{#if insights.incomplete}}<p class="traffic-path-note">Showing {{insights.measured_days}} measured days within {{insights.period}} UTC. Missing days aren’t counted as zero.</p>{{/if}}
+    {{#if insights.has_lead}}
+    <aside class="traffic-insight-evidence" aria-label="What to look at first">
+      <strong>Start with {{insights.lead.name}}</strong>
+      <p><code>{{insights.lead.key}}</code> accounts for {{insights.lead_share}} of the bytes served by the routes below. Check the response size and how often it’s requested before changing sitewide caching.</p>
+    </aside>
+    {{/if}}
+    <div class="traffic-insight-grid">
+      <section aria-labelledby="entry-title">
+        <h3 id="entry-title">Top entry pages</h3>
+        <p class="traffic-slice">{{insights.current}} UTC{{#if insights.comparable}} <span>vs. {{insights.prior}}</span>{{/if}}</p>
+        <div class="traffic-table-wrap" tabindex="0" role="region" aria-labelledby="entry-title">
+          <table class="traffic-table traffic-insight-table">
+            <thead><tr><th scope="col">Page</th><th scope="col">Entries</th><th scope="col">Views</th><th scope="col">Prior entries</th><th scope="col">Change</th></tr></thead>
+            <tbody>{{#for row in insights.entries}}
+            <tr><th scope="row"><a href="{{row.key}}">{{row.name}}</a><code>{{row.key}}</code></th><td>{{row.entries}}</td><td>{{row.views}}</td><td>{{row.previous}}</td><td>{{row.change}}</td></tr>
+            {{/for}}</tbody>
+          </table>
+        </div>
+        <p class="traffic-path-note">Entries are estimated from page views with an external or missing referrer. Known bots are excluded.{{#if insights.comparable}}{{#else}} Change needs two complete weeks of measurements.{{/if}}</p>
+      </section>
+      <section aria-labelledby="transfer-title">
+        <h3 id="transfer-title">Largest transfers</h3>
+        <p class="traffic-slice">{{insights.period}} UTC · Selected public routes</p>
+        {{#if insights.transfers}}
+        <div class="traffic-table-wrap" tabindex="0" role="region" aria-labelledby="transfer-title">
+          <table class="traffic-table traffic-insight-table">
+            <thead><tr><th scope="col">Route</th><th scope="col">Requests</th><th scope="col">Data served</th></tr></thead>
+            <tbody>{{#for row in insights.transfers}}
+            <tr><th scope="row">{{row.name}}<code>{{row.key}}</code></th><td>{{row.requests}}</td><td>{{row.bytes}}</td></tr>
+            {{/for}}</tbody>
+          </table>
+        </div>
+        {{#else}}<p class="traffic-path-note">No data served on these routes in the measured days.</p>{{/if}}
+      </section>
+    </div>
+    <section class="traffic-insight-health" aria-labelledby="route-health-title">
+      <h3 id="route-health-title">Priority route health</h3>
+      <p class="traffic-slice">Errors: {{insights.period}} UTC <span>· Origin p95: {{insights.latest_day}} UTC</span></p>
+      {{#if insights.has_errors}}<p class="traffic-path-note"><code>{{insights.error_route}}</code> had the most 5xx responses on the listed routes ({{insights.error_count}}). Check when they occurred before treating them as an ongoing issue.</p>{{/if}}
+      <div class="traffic-table-wrap" tabindex="0" role="region" aria-labelledby="route-health-title">
+        <table class="traffic-table traffic-insight-table">
+          <thead><tr><th scope="col">Route</th><th scope="col">404</th><th scope="col">5xx</th><th scope="col">Origin p95</th></tr></thead>
+          <tbody>{{#for row in insights.health}}
+          <tr><th scope="row">{{row.name}}<code>{{row.key}}</code></th><td>{{row.missing}}</td><td>{{row.failures}}</td><td>{{row.p95}}</td></tr>
+          {{/for}}</tbody>
+        </table>
+      </div>
+      <p class="traffic-path-note">Errors are HTTP statuses returned by Cloudflare on the listed routes. Origin p95 uses the latest listed UTC day, with at least 20 timed origin responses. A dash means there isn’t enough timing data. This is not browser load time.</p>
+    </section>
+    {{#else}}<p class="traffic-path-note" role="status">No entry, route, or browser breakdown is available for the saved days yet.</p>{{/if}}
+  </section>
   <section id="delivery" aria-labelledby="traffic-delivery-title">
     <div class="traffic-heading traffic-subheading">
       <div><h2 id="traffic-delivery-title">Cache and server performance</h2><p>How Cloudflare handled requests for this site, including assets, data, and bots.</p></div>
@@ -58,7 +115,7 @@
   </section>
   <section id="audience" aria-labelledby="traffic-audience-title">
     <div class="traffic-heading traffic-subheading">
-      <div><h2 id="traffic-audience-title">Geography and devices</h2><p>Page views by country and device type for the period above. Locations are approximate; known crawlers are excluded.</p></div>
+      <div><h2 id="traffic-audience-title">Geography and devices</h2><p>Page views by country and device type. Locations are approximate; known crawlers are excluded.</p></div>
     </div>
     {{#if audience.available}}
     <div class="traffic-audience-grid">
@@ -88,6 +145,30 @@
     <p class="traffic-path-note" role="status">No country or device breakdown yet. Check back after the next refresh.</p>
     {{/if}}
   </section>
+  {{#if insights.available}}
+  <section id="browser-traffic" aria-labelledby="browser-traffic-title">
+    <div class="traffic-heading traffic-subheading"><div><h2 id="browser-traffic-title">Browsers and crawlers</h2><p>{{insights.period}} UTC · Browser families on the tracked pages, and traffic Cloudflare identified as automated across the site.</p></div></div>
+    <div class="traffic-audience-grid">
+      <section class="traffic-audience-panel" aria-labelledby="browser-family-title">
+        <h3 id="browser-family-title">Browser families</h3>
+        {{#if insights.browsers}}<ul class="traffic-breakdown">
+          {{#for item in insights.browsers}}
+          <li><div><span>{{item.label}}</span><strong>{{item.count}} <span>({{item.share}})</span></strong></div><meter min="0" max="{{item.max}}" value="{{item.n}}" aria-hidden="true"></meter></li>
+          {{/for}}
+        </ul>{{#else}}<p>No measured page views.</p>{{/if}}
+      </section>
+      <section class="traffic-audience-panel" aria-labelledby="known-crawlers-title">
+        <h3 id="known-crawlers-title">Known crawlers</h3>
+        {{#if insights.bots}}<ul class="traffic-breakdown">
+          {{#for item in insights.bots}}
+          <li><div><span>{{item.label}}</span><strong>{{item.count}} <span>({{item.share}})</span></strong></div><meter min="0" max="{{item.max}}" value="{{item.n}}" aria-hidden="true"></meter></li>
+          {{/for}}
+        </ul>{{#else}}<p>No known crawler requests in the measured days.</p>{{/if}}
+      </section>
+    </div>
+    <p class="traffic-path-note">Browser counts are page views, not people. Crawler counts include all request types; unrecognized bots may still appear in page views.</p>
+  </section>
+  {{/if}}
   <section class="traffic-pages" id="page-views" aria-labelledby="traffic-pages-title">
     <div class="traffic-heading traffic-subheading">
       <div><h2 id="traffic-pages-title">Page views by URL</h2><p>Successful page loads per UTC day, excluding known crawlers. Query strings are not collected.</p></div>
@@ -151,7 +232,7 @@
       </tbody>
     </table>
   </div>
-  <div class="traffic-notes"><h2>How to read this</h2><p>Visits and page views exclude crawlers identified by Cloudflare. The report counted <strong>{{display.crawler_views}} crawler page views</strong> separately. Visits are not unique people, and unidentified automated traffic can still be counted.</p><p>The report uses <a href="https://developers.cloudflare.com/analytics/graphql-api/tutorials/end-customer-analytics/">Cloudflare edge analytics</a> for this hostname only. Counts are estimates, not raw visitor records. A daily job refreshes completed UTC days; today is not included.</p></div>
+  <div class="traffic-notes"><h2>How to read this</h2><p>Visits and page views exclude crawlers identified by Cloudflare. The report counted <strong>{{display.crawler_views}} crawler page views</strong> separately. Visits are not unique people, and unidentified automated traffic can still be counted.</p><p>The report uses <a href="https://developers.cloudflare.com/analytics/graphql-api/tutorials/end-customer-analytics/">Cloudflare edge analytics</a> for this hostname only. Counts are estimates, not raw visitor records. A daily job refreshes completed UTC days; today is not included.</p><p>Referring sites and real-user browser timings aren’t measured here. This report doesn’t add a browser tracker.</p></div>
   {{#else}}
   <div class="traffic-notes" role="status">{{#if unavailable}}<h2>Traffic report unavailable</h2><p>The saved report cannot be read right now. Check back later.</p>{{#else}}<h2>No traffic report yet</h2><p>The first daily Cloudflare collection has not finished. Check back after the next refresh.</p>{{/if}}</div>
   {{/if}}

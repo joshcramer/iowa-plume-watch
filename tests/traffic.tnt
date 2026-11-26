@@ -1,4 +1,6 @@
 import { store_traffic, traffic_report, traffic_host } from "../lib/traffic.tnt"
+import { format, parse_iso, add_days } from "std/time"
+import { empty_insights, insight_label } from "../lib/traffic-insights.tnt"
 
 let collected = 1795563600
 let row = map { "day": "2026-11-23", "requests": 12, "bytes": 1200, "visits": 3, "views": 4, "crawler_views": 1 }
@@ -87,4 +89,40 @@ bad_delivery["delivery"]["p95_ms"] = -1
 assert(is_err(store_traffic(map { "host": traffic_host(), "collected_at": collected + 450, "days": [bad_delivery] })))
 assert(unwrap(store_traffic(map { "host": traffic_host(), "collected_at": collected + 480, "days": [row] })) == 1)
 assert(traffic_report(collected + 480)["delivery"]["daily"][0]["p95"] == "198 ms")
-print("PASS: traffic import and audience, path, and delivery aggregates")
+let no_insights = traffic_report(collected + 480)["insights"] ?? map {}
+if no_insights["available"] ?? true { panic("Legacy rows must not imply measured insights") }
+assert(insight_label("browsers", "ChromeMobile") == "Chrome")
+assert(insight_label("bots", "not-a-curated-label") == "Other known bots")
+let newest_day = unwrap(parse_iso("2026-11-23T00:00:00Z"))
+let mut two_weeks = []
+for offset in [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13] {
+    let mut candidate = measured
+    candidate["day"] = format(add_days(newest_day, -offset), "%Y-%m-%d")
+    let mut extra = empty_insights()
+    extra["entries"] = map { "/": if offset < 7 { 2 } else { 1 }, "/stats": 0 }
+    extra["browsers"] = map { "Safari": 3 }
+    extra["bots"] = map { "Page Preview": 1 }
+    extra["routes"]["/data/forecast.json"] = map { "requests": 20, "bytes": 800, "missing": 0, "failures": 1, "timed": 20, "p95": if offset == 0 { 184 } else { 900 } }
+    extra["routes"]["/stats"] = map { "requests": 3, "bytes": 200, "missing": 2, "failures": 0, "timed": 3, "p95": 100 }
+    candidate["insights"] = extra
+    two_weeks = push(two_weeks, candidate)
+}
+let long_batch = map { "host":traffic_host(), "collected_at":collected + 600, "days":two_weeks }
+assert(unwrap(store_traffic(long_batch)) == 14)
+let proof = traffic_report(collected + 600)["insights"]
+assert(proof["available"] && proof["comparable"] && proof["measured_days"] == 14)
+assert(proof["entries"][0]["entries"] == "14" && proof["entries"][0]["previous"] == "7" && proof["entries"][0]["change"] == "+7")
+assert(proof["health"][2]["p95"] == "184 ms" && proof["health"][2]["failures"] == "14")
+assert(proof["health"][1]["p95"] == "—" && proof["health"][1]["missing"] == "28")
+assert(proof["lead"]["key"] == "/data/forecast.json" && proof["lead_share"] == "80%")
+assert(proof["browsers"][0]["label"] == "Safari" && proof["bots"][0]["count"] == "14")
+let mut wrong = two_weeks[0]
+wrong["insights"]["routes"]["/stats?private=example"] = map {}
+assert(is_err(store_traffic(map { "host":traffic_host(), "collected_at":collected+601, "days":[wrong] })))
+let mut next_day = row
+next_day["day"] = "2026-11-24"
+assert(unwrap(store_traffic(map { "host":traffic_host(), "collected_at":collected+86400, "days":[next_day] })) == 1)
+let partial = traffic_report(collected + 86400)["insights"]
+assert(partial["available"] && partial["incomplete"] && !partial["comparable"])
+assert(partial["entries"][0]["change"] == "—" && partial["health"][2]["p95"] == "—")
+print("PASS: traffic import, audience, path, delivery, and insight aggregates")
