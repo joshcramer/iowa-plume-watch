@@ -1,0 +1,49 @@
+import { has_key } from "std/collections"
+
+fn delivery_types() -> Map {
+    return map { "html": "HTML pages", "json": "JSON data", "js": "JavaScript", "css": "CSS", "other": "Other content" }
+}
+
+fn delivery_buckets() -> Array { return ["cache", "origin", "other"] }
+
+fn empty_delivery() -> Map {
+    let mut bins = map {}
+    for key in keys(delivery_types()) { bins[key] = map { "cache": 0, "origin": 0, "other": 0 } }
+    return map { "by_type": bins, "errors_5xx": 0 }
+}
+
+fn delivery_content_type(value) -> String {
+    return if has_key(delivery_types(), value) { value } else { "other" }
+}
+
+// These are exclusive. A reported origin response takes precedence over a
+// cache HIT, so the cache column never claims those requests avoided origin.
+fn delivery_bucket(cache_status: String, origin_status: Int) -> String {
+    return if origin_status > 0 { "origin" } else if cache_status == "hit" { "cache" } else { "other" }
+}
+
+fn delivery_count(value) -> Bool {
+    return is_int(value) && value >= 0 && value <= 1000000000000
+}
+
+fn valid_delivery_metrics(data) -> Bool {
+    if !is_map(data) || !delivery_count(data["errors_5xx"]) { return false }
+    let has_p95 = has_key(data, "p95_ms")
+    if len(keys(data)) != (if has_p95 { 3 } else { 2 }) { return false }
+    let by_type = data["by_type"]
+    let types = delivery_types()
+    if !is_map(by_type) || len(keys(by_type)) != len(keys(types)) { return false }
+    let mut total = 0
+    let mut origin_count = 0
+    for kind in keys(types) {
+        let bin = by_type[kind]
+        if !is_map(bin) || len(keys(bin)) != 3 { return false }
+        for bucket in delivery_buckets() {
+            if !delivery_count(bin[bucket]) { return false }
+            total = total + bin[bucket]
+        }
+        origin_count = origin_count + bin["origin"]
+    }
+    if has_p95 && (!delivery_count(data["p95_ms"]) || origin_count == 0) { return false }
+    return data["errors_5xx"] <= total
+}

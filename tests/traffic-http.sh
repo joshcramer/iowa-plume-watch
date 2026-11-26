@@ -16,6 +16,14 @@ if [ "${TRAFFIC_EXPECT_AUDIENCE:-0}" = 1 ]; then
   printf '%s' "$report" | grep -q 'Mobile'
   printf '%s' "$report" | grep -q 'traffic-audience-grid'
 fi
+if [ "${TRAFFIC_EXPECT_DELIVERY:-0}" = 1 ]; then
+  printf '%s' "$report" | grep -q 'Cache and server performance'
+  printf '%s' "$report" | grep -q 'Cache hits'
+  printf '%s' "$report" | grep -q 'Server responses'
+  printf '%s' "$report" | grep -q 'HTTP 5xx'
+  printf '%s' "$report" | grep -q 'Server p95'
+  printf '%s' "$report" | grep -q 'traffic-delivery-grid'
+fi
 if printf '%s' "$report" | grep -Eq '/assets/js/(app\.js|event-timeline\.js|vendor/leaflet\.js)'; then
   printf '%s\n' 'Map scripts must not load on /stats' >&2
   exit 1

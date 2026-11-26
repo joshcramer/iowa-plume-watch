@@ -58,4 +58,33 @@ tracked["audience"] = map { "countries": map { "US": 4 }, "devices": map { "phon
 assert(is_err(store_traffic(map { "host": traffic_host(), "collected_at": collected + 300, "days": [tracked] })))
 assert(unwrap(store_traffic(map { "host": traffic_host(), "collected_at": collected + 360, "days": [row] })) == 1)
 assert(traffic_report(collected + 360)["audience"]["devices"][0]["count"] == "3")
-print("PASS: traffic import and path, device and country aggregates")
+let delivery_base = traffic_report(collected + 360)
+assert((delivery_base["delivery"] ?? map {})["available"] == false)
+let mut performance = row
+performance["delivery"] = map {
+   "by_type": map {
+       "html": map { "cache": 0, "origin": 3, "other": 0 },
+       "json": map { "cache": 0, "origin": 3, "other": 1 },
+       "js": map { "cache": 4, "origin": 1, "other": 0 },
+       "css": map { "cache": 0, "origin": 0, "other": 0 },
+       "other": map { "cache": 0, "origin": 0, "other": 0 }
+   }, "errors_5xx": 1, "p95_ms": 198
+}
+assert(unwrap(store_traffic(map { "host": traffic_host(), "collected_at": collected + 420, "days": [performance] })) == 1)
+let delivery = traffic_report(collected + 420)["delivery"]
+assert(delivery["available"] && delivery["incomplete"])
+assert(delivery["totals"]["cache"] == "4" && delivery["totals"]["origin"] == "7" && delivery["totals"]["other"] == "1")
+assert(delivery["daily"][0]["errors"] == "1" && delivery["daily"][0]["p95"] == "198 ms")
+assert(delivery["daily"][1]["errors"] == "—" && delivery["daily"][1]["p95"] == "—")
+let mut empty_performance = older
+let zeros = map { "cache": 0, "origin": 0, "other": 0 }
+empty_performance["delivery"] = map { "by_type": map { "html": zeros, "json": zeros, "js": zeros, "css": zeros, "other": zeros }, "errors_5xx": 0 }
+assert(unwrap(store_traffic(map { "host": traffic_host(), "collected_at": collected + 430, "days": [empty_performance] })) == 1)
+assert(traffic_report(collected + 430)["delivery"]["daily"][1]["errors"] == "0")
+assert(traffic_report(collected + 430)["delivery"]["daily"][1]["p95"] == "—")
+let mut bad_delivery = performance
+bad_delivery["delivery"]["p95_ms"] = -1
+assert(is_err(store_traffic(map { "host": traffic_host(), "collected_at": collected + 450, "days": [bad_delivery] })))
+assert(unwrap(store_traffic(map { "host": traffic_host(), "collected_at": collected + 480, "days": [row] })) == 1)
+assert(traffic_report(collected + 480)["delivery"]["daily"][0]["p95"] == "198 ms")
+print("PASS: traffic import and audience, path, and delivery aggregates")

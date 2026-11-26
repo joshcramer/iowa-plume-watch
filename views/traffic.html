@@ -17,6 +17,45 @@
     <div><dt>HTTP requests</dt><dd>{{display.requests}}</dd><p>Pages, files, APIs and bots</p></div>
     <div><dt>Data served</dt><dd>{{display.bytes}}</dd><p>Responses delivered by Cloudflare</p></div>
   </dl>
+  <section id="delivery" aria-labelledby="traffic-delivery-title">
+    <div class="traffic-heading traffic-subheading">
+      <div><h2 id="traffic-delivery-title">Cache and server performance</h2><p>How Cloudflare handled requests for this site, including assets, data, and bots.</p></div>
+    </div>
+    {{#if delivery.available}}
+    <div class="traffic-delivery-grid">
+      <section aria-labelledby="delivery-counts-title">
+        <h3 id="delivery-counts-title">Requests by content type</h3>
+        <div class="traffic-table-wrap" tabindex="0" role="region" aria-labelledby="delivery-counts-title">
+          <table class="traffic-table traffic-delivery-types">
+            <thead><tr><th scope="col">Content</th><th scope="col">Cache hits</th><th scope="col" aria-label="Server responses">From server</th><th scope="col">Other</th><th scope="col">Hit rate</th></tr></thead>
+            <tbody>
+              {{#for row in delivery.by_type}}
+              <tr><th scope="row">{{row.label}}</th><td>{{row.cache}}</td><td>{{row.origin}}</td><td>{{row.other}}</td><td>{{row.share}}</td></tr>
+              {{/for}}
+            </tbody>
+            <tfoot><tr><th scope="row">{{delivery.totals.label}}</th><td>{{delivery.totals.cache}}</td><td>{{delivery.totals.origin}}</td><td>{{delivery.totals.other}}</td><td>{{delivery.totals.share}}</td></tr></tfoot>
+          </table>
+        </div>
+        <p class="traffic-path-note">Cache hits had no recorded response from our server. The server column includes revalidations if the server responded. Other includes edge-generated responses and requests Cloudflare could not classify. HTML and JSON here are normally uncached.</p>
+      </section>
+      <section aria-labelledby="delivery-health-title">
+        <h3 id="delivery-health-title">Daily errors and response times</h3>
+        <div class="traffic-table-wrap" tabindex="0" role="region" aria-labelledby="delivery-health-title">
+          <table class="traffic-table traffic-delivery-days">
+            <thead><tr><th scope="col">Day (UTC)</th><th scope="col">HTTP 5xx</th><th scope="col">Server p95</th></tr></thead>
+            <tbody>
+              {{#for row in delivery.daily}}
+              <tr><th scope="row"><time datetime="{{row.day}}">{{row.label}}</time></th><td>{{row.errors}}</td><td>{{row.p95}}</td></tr>
+              {{/for}}
+            </tbody>
+          </table>
+        </div>
+        <p class="traffic-path-note">5xx counts errors Cloudflare returned to visitors, including edge errors. Server p95 is the time within which 95% of timed server responses finished that day. It is not page load time. A dash means no measurement.</p>
+      </section>
+    </div>
+    {{#if delivery.incomplete}}<p class="traffic-path-note">Totals include only days with saved cache and server data.</p>{{/if}}
+    {{#else}}<p class="traffic-path-note" role="status">No cache or server data yet. Check back after the next collection.</p>{{/if}}
+  </section>
   <section id="audience" aria-labelledby="traffic-audience-title">
     <div class="traffic-heading traffic-subheading">
       <div><h2 id="traffic-audience-title">Geography and devices</h2><p>Page views by country and device type for the period above. Locations are approximate; known crawlers are excluded.</p></div>
