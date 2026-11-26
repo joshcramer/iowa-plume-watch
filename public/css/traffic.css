@@ -29,9 +29,10 @@
 .traffic-delivery-types tfoot{border-top:1px solid var(--line);background:#153041;font-weight:750}
 @media(max-width:820px){.traffic-delivery-grid{grid-template-columns:minmax(0,1fr)}}
 @media(max-width:520px){
+  .traffic-delivery-types{table-layout:fixed}
   .traffic-delivery-types,.traffic-delivery-types thead th{font-size:.75rem}
-  .traffic-delivery-types th,.traffic-delivery-types td{padding-inline:.32rem}
-  .traffic-delivery-types th:first-child{white-space:normal;line-height:1.25}
+  .traffic-delivery-types th,.traffic-delivery-types td{padding-inline:.32rem;white-space:normal;overflow-wrap:anywhere;line-height:1.25}
+  .traffic-delivery-types thead th:first-child{width:25%}
 }
 .traffic-visit{display:table-cell;min-width:8rem}.traffic-visit strong{display:inline-block;min-width:2.6em;color:var(--cyan)}
 .traffic-visit meter{display:inline-block;vertical-align:middle;width:clamp(2.45rem,6vw,5rem);height:.49rem;margin-left:.45rem;appearance:none;background:#1d3c4c;border-radius:4px;overflow:hidden}

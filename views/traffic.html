@@ -27,7 +27,7 @@
         <h3 id="delivery-counts-title">Requests by content type</h3>
         <div class="traffic-table-wrap" tabindex="0" role="region" aria-labelledby="delivery-counts-title">
           <table class="traffic-table traffic-delivery-types">
-            <thead><tr><th scope="col">Content</th><th scope="col">Cache hits</th><th scope="col">Server responses</th><th scope="col">Other</th><th scope="col">Hit rate</th></tr></thead>
+            <thead><tr><th scope="col">Content</th><th scope="col">Cache hits</th><th scope="col" aria-label="Server responses">From server</th><th scope="col">Other</th><th scope="col">Hit rate</th></tr></thead>
             <tbody>
               {{#for row in delivery.by_type}}
               <tr><th scope="row">{{row.label}}</th><td>{{row.cache}}</td><td>{{row.origin}}</td><td>{{row.other}}</td><td>{{row.share}}</td></tr>
